@@ -2,7 +2,7 @@
 
 Interactive 3D engineering inspector for **LAGARAM-1**, a high-power single-stage solid-propellant sounding rocket designed for atmospheric and meteorological research.
 
-🔗 **Live website:** https://veera6767.github.io/Lagaram-Rocket-1G/
+🔗 **Live website:** https://veera6767.github.io/LAGARAM-1G/
 
 ## About the Project
 An interactive aerospace 3D engineering inspector and flight verification interface. Inspect alloy metallurgy, hollow cylindrical wall dimensions, axial stage layout, propulsion thermochemistry, and flight dynamics.
