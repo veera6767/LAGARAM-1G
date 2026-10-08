@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, ChevronDown, ChevronUp, Flame, Disc, Radio, Wind, Eye, Scale, ShieldAlert } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, Flame, Disc, Radio, Wind, Eye, EyeOff, Scale, Cpu } from 'lucide-react';
 import { ROCKET_PARTS, VEHICLE_TOTALS } from '../data/rocketParts';
 import { RocketPartInfo } from '../types';
 
@@ -8,6 +8,8 @@ interface PartsListProps {
   onSelectPart: (partId: string | null) => void;
   onFocusPreset?: (partId: string) => void;
   onOpenMassBreakdown?: () => void;
+  partVisibility?: Record<string, boolean>;
+  onTogglePartVisibility?: (partId: string) => void;
 }
 
 export const PartsList: React.FC<PartsListProps> = ({
@@ -15,11 +17,15 @@ export const PartsList: React.FC<PartsListProps> = ({
   onSelectPart,
   onFocusPreset,
   onOpenMassBreakdown,
+  partVisibility,
+  onTogglePartVisibility,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [sortOrder, setSortOrder] = useState<'nose-to-tail' | 'tail-to-nose'>('nose-to-tail');
 
-  const orderedParts = [...ROCKET_PARTS].sort((a, b) =>
+  const pcbPart = ROCKET_PARTS.find((p) => p.id === 'flight-computer-pcb');
+  const topLevelParts = ROCKET_PARTS.filter((p) => !p.parentId);
+  const orderedParts = [...topLevelParts].sort((a, b) =>
     sortOrder === 'nose-to-tail' ? a.order - b.order : b.order - a.order
   );
 
@@ -29,6 +35,8 @@ export const PartsList: React.FC<PartsListProps> = ({
         return <Wind className="w-3.5 h-3.5 text-[#8B939B]" />;
       case 'avionics-bay':
         return <Radio className="w-3.5 h-3.5 text-cyan-300" />;
+      case 'flight-computer-pcb':
+        return <Cpu className="w-3.5 h-3.5 text-cyan-300" />;
       case 'drogue-bay':
         return <Layers className="w-3.5 h-3.5 text-cyan-400" />;
       case 'booster-section':
@@ -149,17 +157,25 @@ export const PartsList: React.FC<PartsListProps> = ({
 
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-1">
-                      {onFocusPreset && (
+                      {onTogglePartVisibility && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onFocusPreset(part.id);
+                            onTogglePartVisibility(part.id);
                           }}
-                          className="p-1 rounded text-slate-400 hover:text-cyan-300 hover:bg-cyan-950/40 transition-colors"
-                          title="Center camera on part"
+                          className={`p-1 rounded transition-colors cursor-pointer ${
+                            partVisibility?.[part.id] !== false
+                              ? 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/40'
+                              : 'text-slate-600 hover:text-slate-400 hover:bg-slate-900/60'
+                          }`}
+                          title={partVisibility?.[part.id] !== false ? `Hide ${part.name}` : `Show ${part.name}`}
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          {partVisibility?.[part.id] !== false ? (
+                            <Eye className="w-3.5 h-3.5" />
+                          ) : (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          )}
                         </button>
                       )}
                     </div>
@@ -180,6 +196,76 @@ export const PartsList: React.FC<PartsListProps> = ({
                         {sub.name} {sub.massKg !== undefined ? `(${sub.massKg.toFixed(2)}kg)` : ''}
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {/* Nested Flight Computer PCB entry under Avionics Bay */}
+                {part.id === 'avionics-bay' && pcbPart && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectPart(selectedPartId === pcbPart.id ? null : pcbPart.id);
+                    }}
+                    className={`mt-2 ml-4 p-2 rounded-lg border transition-all duration-150 cursor-pointer relative ${
+                      selectedPartId === pcbPart.id
+                        ? 'bg-cyan-950/50 border-cyan-400 shadow-[0_0_14px_rgba(0,229,255,0.35)]'
+                        : 'bg-black/60 border-cyan-500/20 hover:bg-cyan-950/25 hover:border-cyan-500/40'
+                    }`}
+                  >
+                    {selectedPartId === pcbPart.id && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-[#00E5FF] rounded-r shadow-[0_0_8px_#00E5FF]" />
+                    )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-tech text-[9px] text-cyan-400/80 w-6">
+                          └─ PCB
+                        </span>
+                        <div className="p-1 rounded bg-black/70 border border-cyan-500/20">
+                          <Cpu className="w-3.5 h-3.5 text-cyan-300" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-100 flex items-center gap-1.5 text-xs">
+                            <span className={selectedPartId === pcbPart.id ? 'text-white drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]' : ''}>
+                              Flight Computer PCB
+                            </span>
+                            {selectedPartId === pcbPart.id && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-ping" />
+                            )}
+                          </div>
+                          <div className="text-[10px] font-tech text-slate-400 flex items-center gap-1">
+                            <span>2-Layer PCB</span>
+                            <span>•</span>
+                            <span>STM32</span>
+                            <span>•</span>
+                            <span className="text-cyan-300/80">1.6 mm</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {onTogglePartVisibility && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTogglePartVisibility(pcbPart.id);
+                            }}
+                            className={`p-1 rounded transition-colors cursor-pointer ${
+                              partVisibility?.[pcbPart.id] !== false
+                                ? 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/40'
+                                : 'text-slate-600 hover:text-slate-400 hover:bg-slate-900/60'
+                            }`}
+                            title={partVisibility?.[pcbPart.id] !== false ? 'Hide PCB' : 'Show PCB'}
+                          >
+                            {partVisibility?.[pcbPart.id] !== false ? (
+                              <Eye className="w-3.5 h-3.5" />
+                            ) : (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

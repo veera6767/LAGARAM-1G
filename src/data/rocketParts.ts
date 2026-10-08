@@ -330,10 +330,50 @@ export const ROCKET_PARTS: RocketPartInfo[] = [
     ],
     subParts: [
       { name: 'Airframe Tube', massKg: m.avionicsTube, note: '250 mm length, 3 mm wall' },
+      { name: 'Flight Computer 3.1', note: '2-layer PCB, STM32' },
       { name: 'Avionics & Weather Payload', massKg: m.avionicsPayload, note: 'Flight computers & sensors' },
       { name: 'Avionics Bulkheads', note: 'Visual internal, mass included in payload' }
     ],
     explodedYOffset: 1.8
+  },
+  {
+    id: 'flight-computer-pcb',
+    name: 'Flight Computer 3.1',
+    assembly: 'Avionics & Payload Bay',
+    order: 2.1,
+    parentId: 'avionics-bay',
+    material: 'FR-4 (2-Layer Printed Circuit Board)',
+    finish: 'Green Solder Mask with White Component Silkscreen',
+    massKg: 0,
+    massNote: 'Mass included in Avionics & Weather Payload (2.30 kg)',
+    // Placeholder size fitting inside 96 mm ID airframe with clearance: 65 mm W x 97.5 mm L x 1.6 mm T (3:2 aspect ratio) - value to confirm
+    lengthMm: 97.5,
+    widthMm: 65,
+    thicknessMm: 1.6,
+    startMm: 626,
+    endMm: 724,
+    outerDiameterMm: 0,
+    innerDiameterMm: 0,
+    wallThicknessMm: 1.6,
+    description: 'Flight Computer 3.1 custom flight controller board. Features a 2-layer PCB and STM32 microcontroller. Mounted flat along the rocket axis inside the RF-transparent composite avionics bay.',
+    technicalDetails: [
+      'Microcontroller: STM32 microcontroller',
+      'PCB Substrate: 2-layer printed circuit board (1.6 mm thickness)',
+      'Board Dimensions: 65 × 97.5 × 1.6 mm (3:2 aspect ratio, placeholder to confirm from CAD/EDA)',
+      'Mounting: Mounted flat along rocket axis inside 96 mm ID avionics bay with standoff plate clearance',
+      'Mass Allocation: Mass included in existing Avionics & Weather Payload (2.30 kg)'
+    ],
+    specs: [
+      { label: 'Board Model', value: 'Flight Computer 3.1' },
+      { label: 'Layer Count', value: '2-Layer PCB' },
+      { label: 'Microcontroller', value: 'STM32' },
+      { label: 'Thickness', value: '1.6 mm' },
+      { label: 'Dimensions', value: '65 × 97.5 mm (to confirm)' },
+      { label: 'Aspect Ratio', value: '~3 : 2' },
+      { label: 'Mass', value: 'Part of 2.30 kg Payload' }
+    ],
+    explodedYOffset: 2.45,
+    explodedRadialOffset: 0.80
   },
   {
     id: 'drogue-bay',

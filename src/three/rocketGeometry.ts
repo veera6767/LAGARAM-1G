@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createRocketMaterials } from './proceduralMaterials';
 import { ROCKET_SPEC } from '../data/rocketParts';
+import pcbTextureUrl from '../assets/flight_computer_pcb.jpg';
 
 export interface RocketPartGroup {
   id: string;
@@ -25,7 +26,14 @@ export interface BuiltRocketModel {
   updateHighlightAnimation: (time: number) => void;
   setWireframe: (enabled: boolean) => void;
   setFinVisualScale: (scale: number) => void;
+  setPartVisibility: (partId: string, visible: boolean) => void;
+  getPcbPosition: () => THREE.Vector3;
   dispose: () => void;
+}
+
+function smoothstep(min: number, max: number, val: number): number {
+  const x = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  return x * x * (3 - 2 * x);
 }
 
 /**
@@ -469,16 +477,32 @@ export function buildRocketModel(): BuiltRocketModel {
   avionicsBulkheadMesh.position.y = avionicsCenterY - avionicsLength / 2 + bulkheadThickness / 2;
   avionicsBulkheadMesh.userData = { partId: 'avionics-bay' };
 
-  // Internal electronics sled (dual flight computers, IMU, battery, telemetry antenna)
-  const sledBoardGeo = new THREE.BoxGeometry(0.012, avionicsLength * 0.72, innerRadius * 1.35);
-  const sledBoardMesh = new THREE.Mesh(sledBoardGeo, materials.avionicsCircuitMaterial);
-  sledBoardMesh.position.y = avionicsCenterY;
-  sledBoardMesh.userData = { partId: 'avionics-bay' };
+  // Internal mounting sled / standoff plate inside avionics bay
+  const sledPlateGeo = new THREE.BoxGeometry(innerRadius * 1.30, avionicsLength * 0.72, 0.006);
+  const sledMesh = new THREE.Mesh(sledPlateGeo, materials.avionicsCircuitMaterial);
+  sledMesh.position.set(0, avionicsCenterY, -0.012);
+  sledMesh.userData = { partId: 'avionics-bay' };
 
-  const imuChipGeo = new THREE.BoxGeometry(0.008, 0.035, 0.035);
-  const imuChipMesh = new THREE.Mesh(imuChipGeo, materials.boltSteelMaterial);
-  imuChipMesh.position.set(0.009, avionicsCenterY + 0.05, 0);
-  imuChipMesh.userData = { partId: 'avionics-bay' };
+  // 4 Brass mounting standoffs on sled plate under PCB corner screw holes
+  /* PCB Board Dimensions: 65 mm width x 97.5 mm length x 1.6 mm thickness
+     (3:2 aspect ratio matching PCB hardware texture, fits inside 96 mm ID airframe with clearance) - Value to confirm */
+  const pcbWidth = mmToUnits(65);      // 0.1625 units
+  const pcbLength = mmToUnits(97.5);   // 0.24375 units
+  const pcbThickness = mmToUnits(1.6); // 0.0040 units
+
+  const standoffGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.008, 12);
+  standoffGeo.rotateX(Math.PI / 2);
+  const standoffs: THREE.Mesh[] = [];
+  const standoffOffsetsX = [pcbWidth * 0.42, -pcbWidth * 0.42];
+  const standoffOffsetsY = [pcbLength * 0.42, -pcbLength * 0.42];
+  standoffOffsetsX.forEach((sx) => {
+    standoffOffsetsY.forEach((sy) => {
+      const so = new THREE.Mesh(standoffGeo, materials.boltSteelMaterial);
+      so.position.set(sx, avionicsCenterY + sy, -0.008);
+      so.userData = { partId: 'avionics-bay' };
+      standoffs.push(so);
+    });
+  });
 
   // Flush access hatch outline on bay surface
   const hatchOutlineGeo = new THREE.BoxGeometry(0.004, 0.12, 0.07);
@@ -489,11 +513,80 @@ export function buildRocketModel(): BuiltRocketModel {
   avionicsGroup.add(
     avionicsMesh,
     avionicsBulkheadMesh,
-    sledBoardMesh,
-    imuChipMesh,
+    sledMesh,
+    ...standoffs,
     hatchOutline
   );
   rootGroup.add(avionicsGroup);
+
+  // ----------------------------------------------------
+  // 5b. FLIGHT COMPUTER PCB (Flight Computer 3.1)
+  // Separate 3D part: 1.6 mm thick board (3:2 aspect ratio)
+  // Top face textured with high-res hardware PCB image; plain PCB green for edges & back.
+  // In assembled state, sits flat along rocket axis on avionics sled standoffs.
+  // In exploded state, slides axially out of tube, translates radially, and tilts toward camera.
+  // ----------------------------------------------------
+  const textureLoader = new THREE.TextureLoader();
+  const pcbTexture = textureLoader.load(pcbTextureUrl);
+  pcbTexture.colorSpace = THREE.SRGBColorSpace;
+  pcbTexture.generateMipmaps = true;
+  pcbTexture.minFilter = THREE.LinearMipmapLinearFilter;
+  pcbTexture.magFilter = THREE.LinearFilter;
+
+  const plainPcbGreenMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0e4a28, // plain FR-4 PCB green for underside and edges
+    roughness: 0.38,
+    metalness: 0.12,
+    envMapIntensity: 1.0,
+  });
+
+  const pcbTopMaterial = new THREE.MeshStandardMaterial({
+    map: pcbTexture,
+    roughness: 0.32,
+    metalness: 0.15,
+    envMapIntensity: 1.2,
+  });
+
+  // BoxGeometry faces: [+X, -X, +Y, -Y, +Z, -Z]
+  // Face +Z is face 4 (top component side with texture)
+  const pcbMaterials = [
+    plainPcbGreenMaterial, // +X right edge
+    plainPcbGreenMaterial, // -X left edge
+    plainPcbGreenMaterial, // +Y top edge
+    plainPcbGreenMaterial, // -Y bottom edge
+    pcbTopMaterial,        // +Z top face (texture with STM32 and labels)
+    plainPcbGreenMaterial, // -Z bottom face (underside)
+  ];
+
+  const pcbGeo = new THREE.BoxGeometry(pcbWidth, pcbLength, pcbThickness);
+  const pcbMesh = new THREE.Mesh(pcbGeo, pcbMaterials);
+  pcbMesh.castShadow = true;
+  pcbMesh.receiveShadow = true;
+  pcbMesh.userData = { partId: 'flight-computer-pcb' };
+
+  const pcbGroup = new THREE.Group();
+  pcbGroup.name = 'flight-computer-pcb';
+  pcbGroup.position.set(0, avionicsCenterY, 0.000);
+  pcbGroup.add(pcbMesh);
+  rootGroup.add(pcbGroup);
+
+  // Dashed cyan leader line connecting PCB to its original mounting position inside the bay
+  const leaderLinePoints = [
+    new THREE.Vector3(0, avionicsCenterY, -0.008),
+    new THREE.Vector3(0, avionicsCenterY, 0.000),
+  ];
+  const leaderLineGeo = new THREE.BufferGeometry().setFromPoints(leaderLinePoints);
+  const leaderLineMat = new THREE.LineDashedMaterial({
+    color: 0x00e5ff,
+    dashSize: 0.035,
+    gapSize: 0.02,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const leaderLine = new THREE.Line(leaderLineGeo, leaderLineMat);
+  leaderLine.computeLineDistances();
+  leaderLine.visible = false;
+  rootGroup.add(leaderLine);
 
   // ----------------------------------------------------
   // 6. NOSE CONE (0 mm to 550 mm, length 550 mm)
@@ -612,8 +705,9 @@ export function buildRocketModel(): BuiltRocketModel {
     });
   };
 
-  // Register all 6 major assemblies nose-to-tail
+  // Register all 6 major assemblies nose-to-tail + separate Flight Computer PCB
   registerPart('nose-cone', 'Nose Cone', 'Forward Aerodynamic Fairing', 1, noseGroup, 3.2, 0);
+  registerPart('flight-computer-pcb', 'Flight Computer 3.1', 'Avionics & Payload Bay', 2.1, pcbGroup, 2.45, 0.80);
   registerPart('avionics-bay', 'Avionics Bay', 'Avionics & Payload Bay', 2, avionicsGroup, 1.8, 0);
   registerPart('drogue-bay', 'Drogue Bay', 'Recovery Subsystem', 3, drogueGroup, 0.8, 0);
   registerPart('booster-section', 'Booster Section', 'Airframe / Propulsion Bay', 4, boosterGroup, -0.2, 0);
@@ -625,22 +719,56 @@ export function buildRocketModel(): BuiltRocketModel {
     const ease = 1 - Math.pow(1 - progress, 3);
 
     parts.forEach((part) => {
-      // Axial separation along Y
-      part.group.position.y = part.initialY + part.explodedDeltaY * ease;
+      if (part.id === 'flight-computer-pcb') {
+        // PCB Kinematics:
+        // 1. Axial exit leads so the PCB exits through the open top rim of the tube before radial separation kicks in
+        const axialLead = 0.70 * smoothstep(0.0, 0.5, progress);
+        const pcbY = avionicsCenterY + (1.8 + axialLead) * ease;
 
-      // Radial displacement for stabilizing fins
-      if (part.id === 'fins' && part.explodedRadialDelta) {
-        const radDist = part.explodedRadialDelta * ease;
-        for (let i = 0; i < finMeshes.length; i++) {
-          const angle = (i * Math.PI) / 2;
-          const baseFinX = Math.cos(angle) * outerRadius;
-          const baseFinZ = Math.sin(angle) * outerRadius;
+        // 2. Radial displacement starts smoothly once board clears tube top (progress >= 0.35)
+        const radialFactor = smoothstep(0.35, 1.0, progress);
+        const currentRadial = 0.80 * radialFactor;
+        // Direction toward camera in Iso 45° (+X, +Z quadrant, angle ~50°)
+        const radAngle = (50 * Math.PI) / 180;
+        part.group.position.x = Math.cos(radAngle) * currentRadial;
+        part.group.position.y = pcbY;
+        part.group.position.z = Math.sin(radAngle) * currentRadial;
 
-          finMeshes[i].position.x = baseFinX + Math.cos(angle) * radDist;
-          finMeshes[i].position.z = baseFinZ + Math.sin(angle) * radDist;
+        // 3. Tilt/rotation toward camera at full explosion:
+        // Rotates ~18-20° toward camera so component side is easily readable from default Iso 45° view
+        part.group.rotation.x = THREE.MathUtils.degToRad(-18) * ease;
+        part.group.rotation.y = THREE.MathUtils.degToRad(20) * ease;
+      } else {
+        // Axial separation along Y
+        part.group.position.y = part.initialY + part.explodedDeltaY * ease;
+
+        // Radial displacement for stabilizing fins
+        if (part.id === 'fins' && part.explodedRadialDelta) {
+          const radDist = part.explodedRadialDelta * ease;
+          for (let i = 0; i < finMeshes.length; i++) {
+            const angle = (i * Math.PI) / 2;
+            const baseFinX = Math.cos(angle) * outerRadius;
+            const baseFinZ = Math.sin(angle) * outerRadius;
+
+            finMeshes[i].position.x = baseFinX + Math.cos(angle) * radDist;
+            finMeshes[i].position.z = baseFinZ + Math.sin(angle) * radDist;
+          }
         }
       }
     });
+
+    // Update thin dashed cyan leader line connecting PCB back to mounting sled in bay
+    if (progress > 0.02 && pcbGroup.visible && avionicsGroup.visible) {
+      leaderLine.visible = true;
+      const mountY = avionicsCenterY + 1.8 * ease;
+      const posAttr = leaderLineGeo.attributes.position as THREE.BufferAttribute;
+      posAttr.setXYZ(0, 0, mountY, -0.008);
+      posAttr.setXYZ(1, pcbGroup.position.x, pcbGroup.position.y, pcbGroup.position.z);
+      posAttr.needsUpdate = true;
+      leaderLine.computeLineDistances();
+    } else {
+      leaderLine.visible = false;
+    }
   };
 
   // Glowing neon cyan edge contour material for selected part
@@ -679,15 +807,23 @@ export function buildRocketModel(): BuiltRocketModel {
 
     // 3. Attach precision edge contours directly as children of each mesh
     selectedPart.meshes.forEach((mesh) => {
-      if (mesh.material instanceof THREE.MeshStandardMaterial) {
-        if (!originalEmissiveMap.has(mesh.material)) {
-          originalEmissiveMap.set(mesh.material, {
-            color: mesh.material.emissive.getHex(),
-            intensity: mesh.material.emissiveIntensity,
-          });
+      const applyEmissive = (mat: THREE.Material) => {
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          if (!originalEmissiveMap.has(mat)) {
+            originalEmissiveMap.set(mat, {
+              color: mat.emissive.getHex(),
+              intensity: mat.emissiveIntensity,
+            });
+          }
+          mat.emissive.setHex(0x00384d);
+          mat.emissiveIntensity = 0.95;
         }
-        mesh.material.emissive.setHex(0x00384d);
-        mesh.material.emissiveIntensity = 0.95;
+      };
+
+      if (Array.isArray(mesh.material)) {
+        mesh.material.forEach(applyEmissive);
+      } else {
+        applyEmissive(mesh.material);
       }
 
       try {
@@ -737,12 +873,34 @@ export function buildRocketModel(): BuiltRocketModel {
     });
   };
 
+  const setPartVisibility = (partId: string, visible: boolean) => {
+    const part = parts.get(partId);
+    if (part) {
+      part.group.visible = visible;
+    }
+    if (!pcbGroup.visible || !avionicsGroup.visible) {
+      leaderLine.visible = false;
+    }
+  };
+
+  const getPcbPosition = () => {
+    return pcbGroup.position.clone();
+  };
+
   const dispose = () => {
     highlightPart(null);
     edgeGlowMat.dispose();
     finEdgeMat.dispose();
     finEdgesGeo.dispose();
     finFilletGeo.dispose();
+    leaderLineGeo.dispose();
+    leaderLineMat.dispose();
+    pcbGeo.dispose();
+    pcbTexture.dispose();
+    pcbTopMaterial.dispose();
+    plainPcbGreenMaterial.dispose();
+    sledPlateGeo.dispose();
+    standoffGeo.dispose();
     rootGroup.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
         obj.geometry.dispose();
@@ -759,6 +917,8 @@ export function buildRocketModel(): BuiltRocketModel {
     updateHighlightAnimation,
     setWireframe,
     setFinVisualScale,
+    setPartVisibility,
+    getPcbPosition,
     dispose,
   };
 }

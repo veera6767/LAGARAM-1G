@@ -16,6 +16,7 @@ import {
   Hand,
   AlertTriangle,
   X,
+  Cpu,
 } from 'lucide-react';
 import { CameraPreset } from '../types';
 
@@ -148,6 +149,15 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         >
           <Radio className="w-3 h-3 text-[#00E5FF]" />
           <span>Avionics</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectPreset('pcb')}
+          title="Flight Computer PCB (framed closely)"
+          className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-cyan-300 text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <Cpu className="w-3 h-3 text-cyan-300" />
+          <span>PCB</span>
         </button>
         <button
           type="button"

@@ -19,6 +19,7 @@ interface RocketCanvasProps {
   cameraPresetTrigger?: { preset: CameraPreset; id: number } | null;
   resetCameraTrigger?: number;
   gestureInputRef?: React.MutableRefObject<GestureCameraInput | null>;
+  partVisibility?: Record<string, boolean>;
 }
 
 export const RocketCanvas: React.FC<RocketCanvasProps> = ({
@@ -33,6 +34,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
   cameraPresetTrigger,
   resetCameraTrigger,
   gestureInputRef,
+  partVisibility,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<BuiltRocketModel | null>(null);
@@ -97,6 +99,15 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     }
   }, [showStabilityMarkers]);
 
+  // Handle individual part visibility toggles
+  useEffect(() => {
+    if (modelRef.current && partVisibility) {
+      Object.entries(partVisibility).forEach(([partId, visible]) => {
+        modelRef.current?.setPartVisibility?.(partId, visible);
+      });
+    }
+  }, [partVisibility]);
+
   // Handle Camera Presets
   useEffect(() => {
     if (!cameraPresetTrigger || !controlsRef.current || !cameraRef.current) return;
@@ -127,6 +138,19 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
         pos.set(1.2, 0.8, 1.5);
         lookAt.set(0, 0.8, 0);
         break;
+      case 'pcb': {
+        const isExp = currentProgressRef.current > 0.05 || targetProgressRef.current > 0.05;
+        if (isExp && modelRef.current?.getPcbPosition) {
+          const pcbPos = modelRef.current.getPcbPosition();
+          pos.set(pcbPos.x + 0.55, pcbPos.y + 0.15, pcbPos.z + 0.65);
+          lookAt.copy(pcbPos);
+        } else {
+          // Assembled: frame avionics bay closely
+          pos.set(0.85, 0.85, 1.05);
+          lookAt.set(0, 0.8125, 0);
+        }
+        break;
+      }
       case 'nose':
         pos.set(1.2, 1.8, 1.5);
         lookAt.set(0, 1.8, 0);
@@ -453,13 +477,19 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
       }
 
       // Hover feedback
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      const isVisibleHit = (hit: THREE.Intersection) => {
+        if (!hit.object.userData?.partId) return false;
+        let curr: THREE.Object3D | null = hit.object;
+        while (curr && curr !== rocket.rootGroup) {
+          if (!curr.visible) return false;
+          curr = curr.parent;
+        }
+        return true;
+      };
 
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(rocket.rootGroup.children, true);
-      const hitPart = intersects.find((hit) => hit.object.userData?.partId);
+      const hitPart = intersects.find(isVisibleHit);
 
       if (hitPart) {
         container.style.cursor = 'pointer';
@@ -475,9 +505,19 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
+      const isVisibleHit = (hit: THREE.Intersection) => {
+        if (!hit.object.userData?.partId) return false;
+        let curr: THREE.Object3D | null = hit.object;
+        while (curr && curr !== rocket.rootGroup) {
+          if (!curr.visible) return false;
+          curr = curr.parent;
+        }
+        return true;
+      };
+
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(rocket.rootGroup.children, true);
-      const hitPart = intersects.find((hit) => hit.object.userData?.partId);
+      const hitPart = intersects.find(isVisibleHit);
 
       if (hitPart && hitPart.object.userData.partId) {
         onSelectPartRef.current(hitPart.object.userData.partId);

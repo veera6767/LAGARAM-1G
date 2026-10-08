@@ -13,6 +13,8 @@ import { MousePointer, BarChart2 } from 'lucide-react';
 
 const getPresetForPart = (id: string): CameraPreset => {
   switch (id) {
+    case 'flight-computer-pcb':
+      return 'pcb';
     case 'inner-motor':
     case 'booster-section':
       return 'engine';
@@ -40,6 +42,14 @@ export default function App() {
   const [cameraPresetTrigger, setCameraPresetTrigger] = useState<{ preset: CameraPreset; id: number } | null>(null);
   const [resetCameraTrigger, setResetCameraTrigger] = useState<number>(0);
   const [isMissionAnalysisOpen, setIsMissionAnalysisOpen] = useState<boolean>(false);
+  const [partVisibility, setPartVisibility] = useState<Record<string, boolean>>({});
+
+  const handleTogglePartVisibility = useCallback((partId: string) => {
+    setPartVisibility((prev) => ({
+      ...prev,
+      [partId]: prev[partId] === false ? true : false,
+    }));
+  }, []);
 
   // Gesture Control State
   const [isGestureControlActive, setIsGestureControlActive] = useState<boolean>(false);
@@ -131,6 +141,8 @@ export default function App() {
         handleSelectPreset('nose');
       } else if (e.key === '6') {
         handleSelectPreset('fins');
+      } else if (e.key === '7') {
+        handleSelectPreset('pcb');
       } else if (e.key === 'Escape') {
         if (isMissionAnalysisOpen) {
           setIsMissionAnalysisOpen(false);
@@ -160,6 +172,7 @@ export default function App() {
         cameraPresetTrigger={cameraPresetTrigger}
         resetCameraTrigger={resetCameraTrigger}
         gestureInputRef={gestureInputRef}
+        partVisibility={partVisibility}
       />
 
       {/* Atmospheric Space Vignette */}
@@ -182,6 +195,8 @@ export default function App() {
               selectedPartId={selectedPartId}
               onSelectPart={handleSelectPart}
               onFocusPreset={(partId) => handleSelectPreset(getPresetForPart(partId))}
+              partVisibility={partVisibility}
+              onTogglePartVisibility={handleTogglePartVisibility}
             />
           </div>
 
@@ -258,6 +273,9 @@ export default function App() {
                 handleSelectPart(id);
                 setMobileTab('info');
               }}
+              onFocusPreset={(partId) => handleSelectPreset(getPresetForPart(partId))}
+              partVisibility={partVisibility}
+              onTogglePartVisibility={handleTogglePartVisibility}
             />
           </div>
         )}

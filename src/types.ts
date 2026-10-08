@@ -30,9 +30,13 @@ export interface RocketPartInfo {
   colorName?: string;
   finenessRatio?: string;
   subParts?: RocketSubPart[];
+  parentId?: string;
+  massNote?: string;
+  widthMm?: number;
+  thicknessMm?: number;
 }
 
-export type CameraPreset = 'hero' | 'engine' | 'recovery' | 'payload' | 'nose' | 'full' | 'fins';
+export type CameraPreset = 'hero' | 'engine' | 'recovery' | 'payload' | 'nose' | 'full' | 'fins' | 'pcb';
 
 export interface ViewerSettings {
   isExploded: boolean;

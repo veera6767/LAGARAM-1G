@@ -41,6 +41,8 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
 
   const getCameraPresetForPart = (id: string): CameraPreset => {
     switch (id) {
+      case 'flight-computer-pcb':
+        return 'pcb';
       case 'inner-motor':
       case 'booster-section':
         return 'engine';
@@ -247,6 +249,7 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
   const isNoseCone = selectedPart.id === 'nose-cone';
   const isMotor = selectedPart.id === 'inner-motor';
   const isFins = selectedPart.id === 'fins';
+  const isPcb = selectedPart.id === 'flight-computer-pcb';
 
   return (
     <div className="pointer-events-auto w-full md:w-96 bg-[#05070d]/85 backdrop-blur-xl border border-cyan-500/25 rounded-xl shadow-[0_0_25px_rgba(0,229,255,0.06),0_15px_30px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[calc(100vh-140px)] animate-fadeIn relative">
@@ -261,7 +264,7 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-1.5 py-0.5 text-[9px] font-tech font-bold rounded bg-cyan-500/15 text-[#00E5FF] border border-cyan-400/30 uppercase tracking-wider">
-              SECTION 0{selectedPart.order} OF 06
+              {isPcb ? 'AVIONICS SUBSYSTEM' : `SECTION 0${selectedPart.order} OF 06`}
             </span>
             <span className="text-[10px] font-tech text-slate-400">
               ID: {selectedPart.id}
@@ -274,6 +277,11 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
             <span className="text-xs font-tech text-cyan-300">
               {selectedPart.assembly}
             </span>
+            {isPcb && (
+              <span className="text-[9px] font-tech px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                STM32 MCU • 2-Layer
+              </span>
+            )}
             {isMotor && (
               <span className="text-[9px] font-tech px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
                 M1928 Motor
@@ -371,30 +379,32 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
               <span className="text-xs font-bold text-slate-100">{selectedPart.lengthMm} mm</span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
-              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Outer Dia</span>
-              <span className="text-xs font-bold text-slate-100">{selectedPart.outerDiameterMm} mm</span>
+              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Width' : 'Outer Dia'}</span>
+              <span className="text-xs font-bold text-slate-100">{isPcb ? `${selectedPart.widthMm} mm` : `${selectedPart.outerDiameterMm} mm`}</span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
-              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Inner Dia</span>
-              <span className="text-xs font-bold text-slate-100">{selectedPart.innerDiameterMm} mm</span>
+              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Thickness' : 'Inner Dia'}</span>
+              <span className="text-xs font-bold text-slate-100">{isPcb ? `${selectedPart.thicknessMm} mm` : `${selectedPart.innerDiameterMm} mm`}</span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
-              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Wall</span>
-              <span className="text-xs font-bold text-cyan-300">{selectedPart.wallThicknessMm} mm</span>
+              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Layers' : 'Wall'}</span>
+              <span className="text-xs font-bold text-cyan-300">{isPcb ? '2-Layer' : `${selectedPart.wallThicknessMm} mm`}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-1 text-center font-tech">
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
               <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Assembly Mass</span>
-              <span className="text-xs font-bold text-[#00E5FF]">{selectedPart.massKg.toFixed(2)} kg</span>
+              <span className="text-xs font-bold text-[#00E5FF]">
+                {isPcb ? 'Part of 2.30 kg Payload' : `${selectedPart.massKg.toFixed(2)} kg`}
+              </span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
               <span className="text-[9px] text-slate-400 block uppercase tracking-wider">
-                {isNoseCone ? 'Fineness Ratio' : 'Material Class'}
+                {isNoseCone ? 'Fineness Ratio' : isPcb ? 'Aspect Ratio' : 'Material Class'}
               </span>
               <span className="text-xs font-bold text-slate-100">
-                {isNoseCone ? selectedPart.finenessRatio : selectedPart.material.split('/')[0]}
+                {isNoseCone ? selectedPart.finenessRatio : isPcb ? '~3 : 2' : selectedPart.material.split('/')[0]}
               </span>
             </div>
           </div>
