@@ -28,6 +28,7 @@ export interface BuiltRocketModel {
   setFinVisualScale: (scale: number) => void;
   setPartVisibility: (partId: string, visible: boolean) => void;
   getPcbPosition: () => THREE.Vector3;
+  getPhonePosition: () => THREE.Vector3;
   dispose: () => void;
 }
 
@@ -134,6 +135,265 @@ function createFinRootFilletGeometry(
   geom.setIndex(indices);
   geom.computeVertexNormals();
   return geom;
+}
+
+/**
+ * Creates high-resolution canvas texture for the smartphone telemetry display.
+ * Displays "PHONE TELEMETRY", pulsing cyan dot, and multi-axis sensor waveform traces.
+ */
+function createPhoneScreenTexture(): THREE.CanvasTexture {
+  const width = 512;
+  const height = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+
+  // Deep space black / dark navy background
+  ctx.fillStyle = '#02050a';
+  ctx.fillRect(0, 0, width, height);
+
+  // Subtle border / bezel line
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(16, 16, width - 32, height - 32);
+
+  // Corner HUD accents
+  const accentLen = 28;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#22d3ee';
+  // Top-left
+  ctx.beginPath();
+  ctx.moveTo(14, 14 + accentLen); ctx.lineTo(14, 14); ctx.lineTo(14 + accentLen, 14);
+  ctx.stroke();
+  // Top-right
+  ctx.beginPath();
+  ctx.moveTo(width - 14 - accentLen, 14); ctx.lineTo(width - 14, 14); ctx.lineTo(width - 14, 14 + accentLen);
+  ctx.stroke();
+  // Bottom-left
+  ctx.beginPath();
+  ctx.moveTo(14, height - 14 - accentLen); ctx.lineTo(14, height - 14); ctx.lineTo(14 + accentLen, height - 14);
+  ctx.stroke();
+  // Bottom-right
+  ctx.beginPath();
+  ctx.moveTo(width - 14 - accentLen, height - 14); ctx.lineTo(width - 14, height - 14); ctx.lineTo(width - 14, height - 14 - accentLen);
+  ctx.stroke();
+
+  // Top header status bar
+  ctx.fillStyle = 'rgba(0, 229, 255, 0.14)';
+  ctx.fillRect(20, 20, width - 40, 52);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 20px "Share Tech Mono", "Orbitron", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('REC: ACTIVE [100 Hz]', 35, 53);
+  ctx.textAlign = 'right';
+  ctx.fillText('LINK: ONLINE', width - 35, 53);
+
+  // Center Header: "PHONE TELEMETRY"
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = 'bold 36px "Orbitron", "Share Tech Mono", monospace';
+  ctx.fillText('PHONE TELEMETRY', width / 2 - 18, 140);
+
+  // Pulsing cyan dot beside "PHONE TELEMETRY"
+  ctx.beginPath();
+  ctx.arc(width / 2 + 185, 128, 9, 0, Math.PI * 2);
+  ctx.fillStyle = '#00e5ff';
+  ctx.fill();
+  ctx.shadowBlur = 24;
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(width / 2 + 185, 128, 17, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+
+  // Thin separator line
+  ctx.strokeStyle = 'rgba(0, 229, 255, 0.45)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(35, 175);
+  ctx.lineTo(width - 35, 175);
+  ctx.stroke();
+
+  // Decorative sensor trace lines (IMU / Gyro / Magnetometer / GNSS waveforms)
+  ctx.strokeStyle = 'rgba(0, 229, 255, 0.08)';
+  ctx.lineWidth = 1;
+  for (let y = 205; y <= 940; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(35, y);
+    ctx.lineTo(width - 35, y);
+    ctx.stroke();
+  }
+  for (let x = 35; x <= width - 35; x += 44) {
+    ctx.beginPath();
+    ctx.moveTo(x, 205);
+    ctx.lineTo(x, 940);
+    ctx.stroke();
+  }
+
+  // Section 1: Accelerometer waveform traces
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 16px "Share Tech Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('IMU: 3-AXIS ACCELEROMETER [AX, AY, AZ]', 45, 235);
+
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 300 + Math.sin(t * 18) * 35 + Math.cos(t * 37) * 14;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 300 + Math.cos(t * 14) * 26 + Math.sin(t * 29) * 10;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#0891b2';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 300 + Math.sin(t * 8) * 18 + Math.cos(t * 45) * 8;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Section 2: Gyroscope rates
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('IMU: 3-AXIS GYROSCOPE [PITCH, YAW, ROLL]', 45, 420);
+
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 490 + Math.sin(t * 22) * 32 + Math.sin(t * 51) * 12;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#06b6d4';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 490 + Math.cos(t * 26) * 24 + Math.cos(t * 13) * 14;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Section 3: Magnetometer & GNSS Vector
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('MAG / GNSS POSITION VECTOR [MAG_B, GNSS_FIX]', 45, 610);
+
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 680 + Math.sin(t * 12) * 28 + Math.cos(t * 25) * 16;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let x = 45; x <= width - 45; x += 4) {
+    const t = (x - 45) / (width - 90);
+    const y = 680 + Math.cos(t * 16) * 22 + Math.sin(t * 33) * 10;
+    if (x === 45) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Section 4: Live Telemetry Buffer Card (No numeric values)
+  ctx.fillStyle = 'rgba(0, 229, 255, 0.12)';
+  ctx.fillRect(45, 780, width - 90, 140);
+  ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
+  ctx.strokeRect(45, 780, width - 90, 140);
+
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = 'bold 18px "Share Tech Mono", monospace';
+  ctx.fillText('SYSTEM: SMARTPHONE TELEMETRY', 60, 815);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '15px "Share Tech Mono", monospace';
+  ctx.fillText('LOGGING: ONBOARD 100 Hz BACKUP FILE', 60, 845);
+  ctx.fillText('DOWNLINK: THINNED REALTIME COPY (INTERNET)', 60, 875);
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('STATE: ALL SUBSYSTEM SENSORS SYNCHRONIZED', 60, 905);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+/**
+ * Creates floating HUD label sprite for the exploded smartphone telemetry assembly
+ */
+function createPhoneFloatingLabel(text: string): { group: THREE.Group; dispose: () => void } {
+  const group = new THREE.Group();
+  const canvas = document.createElement('canvas');
+  canvas.width = 460;
+  canvas.height = 84;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 14;
+
+  ctx.fillStyle = 'rgba(5, 9, 16, 0.92)';
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.roundRect(8, 8, 444, 68, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = '#00e5ff';
+  ctx.font = 'bold 24px "Orbitron", "Share Tech Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 230, 48);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const spriteMat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+  });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(0.60, 0.11, 1);
+  group.add(sprite);
+
+  const dispose = () => {
+    tex.dispose();
+    spriteMat.dispose();
+  };
+
+  return { group, dispose };
 }
 
 /**
@@ -478,17 +738,24 @@ export function buildRocketModel(): BuiltRocketModel {
   avionicsBulkheadMesh.userData = { partId: 'avionics-bay' };
 
   // Internal mounting sled / standoff plate inside avionics bay
-  const sledPlateGeo = new THREE.BoxGeometry(innerRadius * 1.30, avionicsLength * 0.72, 0.006);
+  // Sled widened and extended along length so both the Flight Computer PCB and Phone mounting tray fit flat without overlap
+  const sledWidth = mmToUnits(80); // 80 mm wide (fits comfortably within 96 mm ID airframe)
+  const sledLength = avionicsLength * 0.92; // 230 mm length (fits cleanly between bulkheads)
+  const sledPlateGeo = new THREE.BoxGeometry(sledWidth, sledLength, 0.006);
   const sledMesh = new THREE.Mesh(sledPlateGeo, materials.avionicsCircuitMaterial);
-  sledMesh.position.set(0, avionicsCenterY, -0.012);
+  sledMesh.position.set(0, avionicsCenterY, -0.014);
   sledMesh.userData = { partId: 'avionics-bay' };
 
-  // 4 Brass mounting standoffs on sled plate under PCB corner screw holes
-  /* PCB Board Dimensions: 65 mm width x 97.5 mm length x 1.6 mm thickness
-     (3:2 aspect ratio matching PCB hardware texture, fits inside 96 mm ID airframe with clearance) - Value to confirm */
+  // ----------------------------------------------------
+  // Flight Computer PCB Board & Mounting Standoffs
+  // PCB Dimensions: 65 mm width x 97.5 mm length x 1.6 mm thickness
+  // Positioned on the forward section of the sled plate
+  // ----------------------------------------------------
   const pcbWidth = mmToUnits(65);      // 0.1625 units
   const pcbLength = mmToUnits(97.5);   // 0.24375 units
   const pcbThickness = mmToUnits(1.6); // 0.0040 units
+  const pcbCenterY = avionicsCenterY + mmToUnits(62);
+  const pcbCenterX = 0;
 
   const standoffGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.008, 12);
   standoffGeo.rotateX(Math.PI / 2);
@@ -498,7 +765,30 @@ export function buildRocketModel(): BuiltRocketModel {
   standoffOffsetsX.forEach((sx) => {
     standoffOffsetsY.forEach((sy) => {
       const so = new THREE.Mesh(standoffGeo, materials.boltSteelMaterial);
-      so.position.set(sx, avionicsCenterY + sy, -0.008);
+      so.position.set(pcbCenterX + sx, pcbCenterY + sy, -0.010);
+      so.userData = { partId: 'avionics-bay' };
+      standoffs.push(so);
+    });
+  });
+
+  // Standoffs on sled under Phone mounting tray 4 corner screws
+  // Phone dimensions: about 150 mm x 70 mm x 8 mm (placeholder, confirm with the real phone)
+  // Attachment hardware: design-intent representation, update to match the real build
+  const phoneWidth = mmToUnits(68);      // 0.170 units (~68 mm)
+  const phoneLength = mmToUnits(134);    // 0.335 units (~134 mm)
+  const phoneThickness = mmToUnits(8);   // 0.020 units (8 mm)
+  const phoneCenterY = avionicsCenterY - mmToUnits(52);
+  const phoneCenterX = 0;
+
+  const trayWidth = phoneWidth + mmToUnits(4);   // 72 mm wide
+  const trayLength = phoneLength + mmToUnits(4); // 138 mm long
+  const trayThickness = mmToUnits(1.5);
+  const phoneStandoffOffsetsX = [trayWidth * 0.44, -trayWidth * 0.44];
+  const phoneStandoffOffsetsY = [trayLength * 0.44, -trayLength * 0.44];
+  phoneStandoffOffsetsX.forEach((sx) => {
+    phoneStandoffOffsetsY.forEach((sy) => {
+      const so = new THREE.Mesh(standoffGeo, materials.boltSteelMaterial);
+      so.position.set(phoneCenterX + sx, phoneCenterY + sy, -0.010);
       so.userData = { partId: 'avionics-bay' };
       standoffs.push(so);
     });
@@ -566,14 +856,14 @@ export function buildRocketModel(): BuiltRocketModel {
 
   const pcbGroup = new THREE.Group();
   pcbGroup.name = 'flight-computer-pcb';
-  pcbGroup.position.set(0, avionicsCenterY, 0.000);
+  pcbGroup.position.set(pcbCenterX, pcbCenterY, -0.004);
   pcbGroup.add(pcbMesh);
   rootGroup.add(pcbGroup);
 
   // Dashed cyan leader line connecting PCB to its original mounting position inside the bay
   const leaderLinePoints = [
-    new THREE.Vector3(0, avionicsCenterY, -0.008),
-    new THREE.Vector3(0, avionicsCenterY, 0.000),
+    new THREE.Vector3(pcbCenterX, pcbCenterY, -0.010),
+    new THREE.Vector3(pcbCenterX, pcbCenterY, -0.004),
   ];
   const leaderLineGeo = new THREE.BufferGeometry().setFromPoints(leaderLinePoints);
   const leaderLineMat = new THREE.LineDashedMaterial({
@@ -587,6 +877,270 @@ export function buildRocketModel(): BuiltRocketModel {
   leaderLine.computeLineDistances();
   leaderLine.visible = false;
   rootGroup.add(leaderLine);
+
+  // ----------------------------------------------------
+  // 5c. SMARTPHONE TELEMETRY PAYLOAD & SECURE MOUNTING HARDWARE
+  // Independent 3D part inside the Avionics Bay beside Flight Computer PCB.
+  // Dimensions: about 150 mm x 70 mm x 8 mm (placeholder, confirm with the real phone)
+  // Attachment hardware: design-intent representation, update to match the real build
+  // ----------------------------------------------------
+  const phoneGroup = new THREE.Group();
+  phoneGroup.name = 'smartphone-telemetry';
+  phoneGroup.position.set(phoneCenterX, phoneCenterY, -0.004);
+
+  // Materials for phone assembly
+  const phoneScreenTexture = createPhoneScreenTexture();
+  const phoneScreenMat = new THREE.MeshStandardMaterial({
+    map: phoneScreenTexture,
+    emissive: 0x00e5ff,
+    emissiveMap: phoneScreenTexture,
+    emissiveIntensity: 0.55,
+    roughness: 0.16,
+    metalness: 0.10,
+    envMapIntensity: 1.2,
+  });
+
+  const phoneFrameMat = new THREE.MeshStandardMaterial({
+    color: 0x24272e, // dark-gray metal frame
+    roughness: 0.35,
+    metalness: 0.85,
+    envMapIntensity: 1.5,
+  });
+
+  const phoneGlassBackMat = new THREE.MeshStandardMaterial({
+    color: 0x0c0e12, // dark glass rear face
+    roughness: 0.18,
+    metalness: 0.25,
+    envMapIntensity: 1.4,
+  });
+
+  const trayMat = new THREE.MeshStandardMaterial({
+    color: 0x1f232b, // dark anodized mounting tray
+    roughness: 0.40,
+    metalness: 0.75,
+    envMapIntensity: 1.1,
+  });
+
+  const foamMat = new THREE.MeshStandardMaterial({
+    color: 0x121417, // dark vibration damping foam pad
+    roughness: 0.95,
+    metalness: 0.0,
+  });
+
+  const strapMat = new THREE.MeshStandardMaterial({
+    color: 0x2e3540, // hold-down clamp straps
+    roughness: 0.38,
+    metalness: 0.80,
+    envMapIntensity: 1.3,
+  });
+
+  // Layer 1: Mounting Tray (Flat base + shallow pocket with raised edges)
+  const trayGroup = new THREE.Group();
+  trayGroup.name = 'phone-mounting-tray';
+
+  const trayBaseGeo = new THREE.BoxGeometry(trayWidth, trayLength, trayThickness);
+  const trayBaseMesh = new THREE.Mesh(trayBaseGeo, trayMat);
+  trayBaseMesh.castShadow = true;
+  trayBaseMesh.receiveShadow = true;
+  trayBaseMesh.userData = { partId: 'smartphone-telemetry' };
+  trayGroup.add(trayBaseMesh);
+
+  // 4 Raised pocket lips (prevent lateral sliding)
+  const lipHeight = mmToUnits(3.5);
+  const lipThick = mmToUnits(1.5);
+  const lipZ = trayThickness / 2 + lipHeight / 2;
+
+  // Left & Right lips
+  const sideLipGeo = new THREE.BoxGeometry(lipThick, trayLength, lipHeight);
+  const leftLip = new THREE.Mesh(sideLipGeo, trayMat);
+  leftLip.position.set(-trayWidth / 2 + lipThick / 2, 0, lipZ);
+  leftLip.userData = { partId: 'smartphone-telemetry' };
+  const rightLip = new THREE.Mesh(sideLipGeo, trayMat);
+  rightLip.position.set(trayWidth / 2 - lipThick / 2, 0, lipZ);
+  rightLip.userData = { partId: 'smartphone-telemetry' };
+
+  // Top & Bottom lips
+  const endLipGeo = new THREE.BoxGeometry(trayWidth, lipThick, lipHeight);
+  const topLip = new THREE.Mesh(endLipGeo, trayMat);
+  topLip.position.set(0, trayLength / 2 - lipThick / 2, lipZ);
+  topLip.userData = { partId: 'smartphone-telemetry' };
+  const bottomLip = new THREE.Mesh(endLipGeo, trayMat);
+  bottomLip.position.set(0, -trayLength / 2 + lipThick / 2, lipZ);
+  bottomLip.userData = { partId: 'smartphone-telemetry' };
+
+  trayGroup.add(leftLip, rightLip, topLip, bottomLip);
+
+  // Layer 2: Foam Pad (thin dark pad inside pocket for vibration damping)
+  const foamGeo = new THREE.BoxGeometry(phoneWidth - mmToUnits(0.5), phoneLength - mmToUnits(0.5), mmToUnits(1.2));
+  const foamMesh = new THREE.Mesh(foamGeo, foamMat);
+  foamMesh.position.set(0, 0, trayThickness / 2 + mmToUnits(0.6));
+  foamMesh.userData = { partId: 'smartphone-telemetry' };
+
+  // Layer 3: Smartphone Body
+  const phoneMeshGroup = new THREE.Group();
+  phoneMeshGroup.name = 'phone-body';
+
+  // Face 0: +X, 1: -X, 2: +Y, 3: -Y (metal frame)
+  // Face 4: +Z (screen with canvas texture)
+  // Face 5: -Z (dark glass back)
+  const phoneMaterials = [
+    phoneFrameMat,     // +X
+    phoneFrameMat,     // -X
+    phoneFrameMat,     // +Y
+    phoneFrameMat,     // -Y
+    phoneScreenMat,    // +Z (Display face)
+    phoneGlassBackMat, // -Z (Back face)
+  ];
+  const phoneBodyGeo = new THREE.BoxGeometry(phoneWidth, phoneLength, phoneThickness);
+  const phoneBodyMesh = new THREE.Mesh(phoneBodyGeo, phoneMaterials);
+  phoneBodyMesh.castShadow = true;
+  phoneBodyMesh.receiveShadow = true;
+  phoneBodyMesh.userData = { partId: 'smartphone-telemetry' };
+  phoneMeshGroup.add(phoneBodyMesh);
+
+  // Rear camera bump on back face (-Z)
+  const cameraBumpGeo = new THREE.BoxGeometry(phoneWidth * 0.32, phoneLength * 0.16, mmToUnits(1.8));
+  const cameraBumpMesh = new THREE.Mesh(cameraBumpGeo, phoneFrameMat);
+  cameraBumpMesh.position.set(phoneWidth * 0.22, phoneLength * 0.34, -phoneThickness / 2 - mmToUnits(0.9));
+  cameraBumpMesh.userData = { partId: 'smartphone-telemetry' };
+
+  // Dual camera lens circles on camera bump
+  const lensGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.001, 16);
+  lensGeo.rotateX(Math.PI / 2);
+  const lens1 = new THREE.Mesh(lensGeo, phoneGlassBackMat);
+  lens1.position.set(phoneWidth * 0.22, phoneLength * 0.34 + 0.010, -phoneThickness / 2 - mmToUnits(1.85));
+  lens1.userData = { partId: 'smartphone-telemetry' };
+  const lens2 = new THREE.Mesh(lensGeo, phoneGlassBackMat);
+  lens2.position.set(phoneWidth * 0.22, phoneLength * 0.34 - 0.010, -phoneThickness / 2 - mmToUnits(1.85));
+  lens2.userData = { partId: 'smartphone-telemetry' };
+  phoneMeshGroup.add(cameraBumpMesh, lens1, lens2);
+
+  phoneMeshGroup.position.set(0, 0, trayThickness / 2 + mmToUnits(1.2) + phoneThickness / 2);
+
+  // Layer 4: Hold-down straps (two transverse clamp brackets across top & bottom)
+  // Leaves the "PHONE TELEMETRY" display and traces completely open
+  const strapsGroup = new THREE.Group();
+  strapsGroup.name = 'phone-hold-down-straps';
+
+  const strapSpan = trayWidth + mmToUnits(2);
+  const strapHeight = mmToUnits(14);
+  const strapDepth = mmToUnits(2.2);
+  const strapGeo = new THREE.BoxGeometry(strapSpan, strapHeight, strapDepth);
+
+  const topStrap = new THREE.Mesh(strapGeo, strapMat);
+  topStrap.position.set(0, phoneLength * 0.38, 0);
+  topStrap.userData = { partId: 'smartphone-telemetry' };
+
+  const bottomStrap = new THREE.Mesh(strapGeo, strapMat);
+  bottomStrap.position.set(0, -phoneLength * 0.38, 0);
+  bottomStrap.userData = { partId: 'smartphone-telemetry' };
+  strapsGroup.add(topStrap, bottomStrap);
+
+  strapsGroup.position.set(0, 0, trayThickness / 2 + mmToUnits(1.2) + phoneThickness + strapDepth / 2);
+
+  // Layer 5: Fasteners (4 screws holding tray to sled standoffs, and 4 clamp screws holding straps)
+  const screwsGroup = new THREE.Group();
+  screwsGroup.name = 'phone-fasteners';
+
+  const screwShankGeo = new THREE.CylinderGeometry(0.0018, 0.0018, 0.006, 12);
+  screwShankGeo.rotateX(Math.PI / 2);
+  const screwHeadGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 0.002, 12);
+  screwHeadGeo.rotateX(Math.PI / 2);
+
+  const createScrewMesh = () => {
+    const sGroup = new THREE.Group();
+    const shank = new THREE.Mesh(screwShankGeo, materials.boltSteelMaterial);
+    const head = new THREE.Mesh(screwHeadGeo, materials.boltSteelMaterial);
+    head.position.z = 0.003;
+    shank.userData = { partId: 'smartphone-telemetry' };
+    head.userData = { partId: 'smartphone-telemetry' };
+    sGroup.add(shank, head);
+    return sGroup;
+  };
+
+  // 4 clamp screws (2 on top strap, 2 on bottom strap)
+  const clampScrewPositions = [
+    { x: -strapSpan * 0.42, y: phoneLength * 0.38 },
+    { x: strapSpan * 0.42, y: phoneLength * 0.38 },
+    { x: -strapSpan * 0.42, y: -phoneLength * 0.38 },
+    { x: strapSpan * 0.42, y: -phoneLength * 0.38 },
+  ];
+  const clampScrews: THREE.Group[] = [];
+  clampScrewPositions.forEach((pos) => {
+    const sc = createScrewMesh();
+    sc.position.set(pos.x, pos.y, 0);
+    clampScrews.push(sc);
+    screwsGroup.add(sc);
+  });
+
+  // 4 tray standoff screws (at tray corners)
+  const trayScrewsGroup = new THREE.Group();
+  trayScrewsGroup.name = 'tray-fasteners';
+  phoneStandoffOffsetsX.forEach((sx) => {
+    phoneStandoffOffsetsY.forEach((sy) => {
+      const sc = createScrewMesh();
+      sc.position.set(sx, sy, -0.003);
+      trayScrewsGroup.add(sc);
+    });
+  });
+
+  screwsGroup.position.set(0, 0, trayThickness / 2 + mmToUnits(1.2) + phoneThickness + strapDepth + 0.002);
+
+  // Short dashed cyan leader lines from screws to their holes (visible when exploded)
+  const screwLines: THREE.Line[] = [];
+  const screwLineMat = new THREE.LineDashedMaterial({
+    color: 0x00e5ff,
+    dashSize: 0.008,
+    gapSize: 0.006,
+    transparent: true,
+    opacity: 0.75,
+  });
+
+  clampScrewPositions.forEach((pos) => {
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(pos.x, pos.y, 0),
+      new THREE.Vector3(pos.x, pos.y, 0.03),
+    ]);
+    const line = new THREE.Line(lineGeo, screwLineMat);
+    line.computeLineDistances();
+    line.visible = false;
+    phoneGroup.add(line);
+    screwLines.push(line);
+  });
+
+  // Assemble all layers into phoneGroup
+  phoneGroup.add(
+    trayGroup,
+    trayScrewsGroup,
+    foamMesh,
+    phoneMeshGroup,
+    strapsGroup,
+    screwsGroup
+  );
+  rootGroup.add(phoneGroup);
+
+  // Dashed cyan leader line connecting Phone Assembly back to mounting sled in bay
+  const phoneLeaderLinePoints = [
+    new THREE.Vector3(phoneCenterX, phoneCenterY, -0.010),
+    new THREE.Vector3(phoneCenterX, phoneCenterY, -0.004),
+  ];
+  const phoneLeaderLineGeo = new THREE.BufferGeometry().setFromPoints(phoneLeaderLinePoints);
+  const phoneLeaderLineMat = new THREE.LineDashedMaterial({
+    color: 0x00e5ff,
+    dashSize: 0.035,
+    gapSize: 0.02,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const phoneLeaderLine = new THREE.Line(phoneLeaderLineGeo, phoneLeaderLineMat);
+  phoneLeaderLine.computeLineDistances();
+  phoneLeaderLine.visible = false;
+  rootGroup.add(phoneLeaderLine);
+
+  // Floating label sprite "Smartphone Telemetry" beside the phone when exploded
+  const phoneFloatingLabel = createPhoneFloatingLabel('Smartphone Telemetry');
+  phoneFloatingLabel.group.visible = false;
+  rootGroup.add(phoneFloatingLabel.group);
 
   // ----------------------------------------------------
   // 6. NOSE CONE (0 mm to 550 mm, length 550 mm)
@@ -705,9 +1259,10 @@ export function buildRocketModel(): BuiltRocketModel {
     });
   };
 
-  // Register all 6 major assemblies nose-to-tail + separate Flight Computer PCB
+  // Register all 6 major assemblies nose-to-tail + separate Flight Computer PCB + Smartphone Telemetry
   registerPart('nose-cone', 'Nose Cone', 'Forward Aerodynamic Fairing', 1, noseGroup, 3.2, 0);
   registerPart('flight-computer-pcb', 'Flight Computer 3.1', 'Avionics & Payload Bay', 2.1, pcbGroup, 2.45, 0.80);
+  registerPart('smartphone-telemetry', 'Smartphone Telemetry', 'Avionics & Payload Bay', 2.2, phoneGroup, 2.2, 0.85);
   registerPart('avionics-bay', 'Avionics Bay', 'Avionics & Payload Bay', 2, avionicsGroup, 1.8, 0);
   registerPart('drogue-bay', 'Drogue Bay', 'Recovery Subsystem', 3, drogueGroup, 0.8, 0);
   registerPart('booster-section', 'Booster Section', 'Airframe / Propulsion Bay', 4, boosterGroup, -0.2, 0);
@@ -723,7 +1278,7 @@ export function buildRocketModel(): BuiltRocketModel {
         // PCB Kinematics:
         // 1. Axial exit leads so the PCB exits through the open top rim of the tube before radial separation kicks in
         const axialLead = 0.70 * smoothstep(0.0, 0.5, progress);
-        const pcbY = avionicsCenterY + (1.8 + axialLead) * ease;
+        const pcbY = pcbCenterY + (1.8 + axialLead) * ease;
 
         // 2. Radial displacement starts smoothly once board clears tube top (progress >= 0.35)
         const radialFactor = smoothstep(0.35, 1.0, progress);
@@ -738,6 +1293,45 @@ export function buildRocketModel(): BuiltRocketModel {
         // Rotates ~18-20° toward camera so component side is easily readable from default Iso 45° view
         part.group.rotation.x = THREE.MathUtils.degToRad(-18) * ease;
         part.group.rotation.y = THREE.MathUtils.degToRad(20) * ease;
+      } else if (part.id === 'smartphone-telemetry') {
+        // Smartphone Kinematics:
+        // 1. Axial exit leads so the phone assembly exits past the tube rim
+        const axialLead = 0.70 * smoothstep(0.0, 0.5, progress);
+        const phoneY = phoneCenterY + (1.8 + axialLead) * ease;
+
+        // 2. Radial displacement on opposite side from PCB (angle 125°, -X, +Z quadrant)
+        const radialFactor = smoothstep(0.35, 1.0, progress);
+        const currentRadial = 0.85 * radialFactor;
+        const radAngle = (125 * Math.PI) / 180;
+        part.group.position.x = Math.cos(radAngle) * currentRadial;
+        part.group.position.y = phoneY;
+        part.group.position.z = Math.sin(radAngle) * currentRadial;
+
+        // 3. Tilt toward camera 15-25° so PHONE TELEMETRY screen is easily readable
+        part.group.rotation.x = THREE.MathUtils.degToRad(-16) * ease;
+        part.group.rotation.y = THREE.MathUtils.degToRad(-22) * ease;
+
+        // 4. Staged internal exploded stack along phone's normal axis (local Z):
+        trayGroup.position.z = -0.016 * ease;
+        trayScrewsGroup.position.z = -0.036 * ease;
+        foamMesh.position.z = (trayThickness / 2 + mmToUnits(0.6)) - 0.007 * ease;
+        phoneMeshGroup.position.z = (trayThickness / 2 + mmToUnits(1.2) + phoneThickness / 2) + 0.008 * ease;
+        strapsGroup.position.z = (trayThickness / 2 + mmToUnits(1.2) + phoneThickness + strapDepth / 2) + 0.030 * ease;
+        screwsGroup.position.z = (trayThickness / 2 + mmToUnits(1.2) + phoneThickness + strapDepth + 0.002) + 0.055 * ease;
+
+        // Update short dashed cyan leader lines from screws to their holes
+        const isExp = progress > 0.05;
+        screwLines.forEach((line, idx) => {
+          line.visible = isExp;
+          if (isExp) {
+            const pos = clampScrewPositions[idx];
+            const pAttr = line.geometry.attributes.position as THREE.BufferAttribute;
+            pAttr.setXYZ(0, pos.x, pos.y, strapsGroup.position.z);
+            pAttr.setXYZ(1, pos.x, pos.y, screwsGroup.position.z);
+            pAttr.needsUpdate = true;
+            line.computeLineDistances();
+          }
+        });
       } else {
         // Axial separation along Y
         part.group.position.y = part.initialY + part.explodedDeltaY * ease;
@@ -760,14 +1354,39 @@ export function buildRocketModel(): BuiltRocketModel {
     // Update thin dashed cyan leader line connecting PCB back to mounting sled in bay
     if (progress > 0.02 && pcbGroup.visible && avionicsGroup.visible) {
       leaderLine.visible = true;
-      const mountY = avionicsCenterY + 1.8 * ease;
+      const mountY = pcbCenterY + 1.8 * ease;
       const posAttr = leaderLineGeo.attributes.position as THREE.BufferAttribute;
-      posAttr.setXYZ(0, 0, mountY, -0.008);
+      posAttr.setXYZ(0, pcbCenterX, mountY, -0.010);
       posAttr.setXYZ(1, pcbGroup.position.x, pcbGroup.position.y, pcbGroup.position.z);
       posAttr.needsUpdate = true;
       leaderLine.computeLineDistances();
     } else {
       leaderLine.visible = false;
+    }
+
+    // Update thin dashed cyan leader line connecting Phone Assembly back to mounting sled in bay
+    if (progress > 0.02 && phoneGroup.visible && avionicsGroup.visible) {
+      phoneLeaderLine.visible = true;
+      const mountY = phoneCenterY + 1.8 * ease;
+      const posAttr = phoneLeaderLineGeo.attributes.position as THREE.BufferAttribute;
+      posAttr.setXYZ(0, phoneCenterX, mountY, -0.010);
+      posAttr.setXYZ(1, phoneGroup.position.x, phoneGroup.position.y, phoneGroup.position.z);
+      posAttr.needsUpdate = true;
+      phoneLeaderLine.computeLineDistances();
+    } else {
+      phoneLeaderLine.visible = false;
+    }
+
+    // Update floating label beside phone
+    if (progress > 0.15 && phoneGroup.visible) {
+      phoneFloatingLabel.group.visible = true;
+      phoneFloatingLabel.group.position.set(
+        phoneGroup.position.x - 0.22,
+        phoneGroup.position.y + 0.14,
+        phoneGroup.position.z + 0.05
+      );
+    } else {
+      phoneFloatingLabel.group.visible = false;
     }
   };
 
@@ -881,10 +1500,18 @@ export function buildRocketModel(): BuiltRocketModel {
     if (!pcbGroup.visible || !avionicsGroup.visible) {
       leaderLine.visible = false;
     }
+    if (!phoneGroup.visible || !avionicsGroup.visible) {
+      phoneLeaderLine.visible = false;
+      phoneFloatingLabel.group.visible = false;
+    }
   };
 
   const getPcbPosition = () => {
     return pcbGroup.position.clone();
+  };
+
+  const getPhonePosition = () => {
+    return phoneGroup.position.clone();
   };
 
   const dispose = () => {
@@ -895,10 +1522,32 @@ export function buildRocketModel(): BuiltRocketModel {
     finFilletGeo.dispose();
     leaderLineGeo.dispose();
     leaderLineMat.dispose();
+    phoneLeaderLineGeo.dispose();
+    phoneLeaderLineMat.dispose();
+    phoneFloatingLabel.dispose();
     pcbGeo.dispose();
     pcbTexture.dispose();
     pcbTopMaterial.dispose();
     plainPcbGreenMaterial.dispose();
+    phoneScreenTexture.dispose();
+    phoneScreenMat.dispose();
+    phoneFrameMat.dispose();
+    phoneGlassBackMat.dispose();
+    trayMat.dispose();
+    foamMat.dispose();
+    strapMat.dispose();
+    screwLineMat.dispose();
+    screwLines.forEach((l) => l.geometry.dispose());
+    trayBaseGeo.dispose();
+    sideLipGeo.dispose();
+    endLipGeo.dispose();
+    foamGeo.dispose();
+    phoneBodyGeo.dispose();
+    cameraBumpGeo.dispose();
+    lensGeo.dispose();
+    strapGeo.dispose();
+    screwShankGeo.dispose();
+    screwHeadGeo.dispose();
     sledPlateGeo.dispose();
     standoffGeo.dispose();
     rootGroup.traverse((obj) => {
@@ -919,6 +1568,7 @@ export function buildRocketModel(): BuiltRocketModel {
     setFinVisualScale,
     setPartVisibility,
     getPcbPosition,
+    getPhonePosition,
     dispose,
   };
 }

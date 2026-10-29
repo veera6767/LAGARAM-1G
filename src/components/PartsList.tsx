@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, ChevronDown, ChevronUp, Flame, Disc, Radio, Wind, Eye, EyeOff, Scale, Cpu } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, Flame, Disc, Radio, Wind, Eye, EyeOff, Scale, Cpu, Smartphone } from 'lucide-react';
 import { ROCKET_PARTS, VEHICLE_TOTALS } from '../data/rocketParts';
 import { RocketPartInfo } from '../types';
 
@@ -24,6 +24,7 @@ export const PartsList: React.FC<PartsListProps> = ({
   const [sortOrder, setSortOrder] = useState<'nose-to-tail' | 'tail-to-nose'>('nose-to-tail');
 
   const pcbPart = ROCKET_PARTS.find((p) => p.id === 'flight-computer-pcb');
+  const phonePart = ROCKET_PARTS.find((p) => p.id === 'smartphone-telemetry');
   const topLevelParts = ROCKET_PARTS.filter((p) => !p.parentId);
   const orderedParts = [...topLevelParts].sort((a, b) =>
     sortOrder === 'nose-to-tail' ? a.order - b.order : b.order - a.order
@@ -37,6 +38,8 @@ export const PartsList: React.FC<PartsListProps> = ({
         return <Radio className="w-3.5 h-3.5 text-cyan-300" />;
       case 'flight-computer-pcb':
         return <Cpu className="w-3.5 h-3.5 text-cyan-300" />;
+      case 'smartphone-telemetry':
+        return <Smartphone className="w-3.5 h-3.5 text-cyan-300" />;
       case 'drogue-bay':
         return <Layers className="w-3.5 h-3.5 text-cyan-400" />;
       case 'booster-section':
@@ -265,6 +268,92 @@ export const PartsList: React.FC<PartsListProps> = ({
                           </button>
                         )}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nested Smartphone Telemetry entry under Avionics Bay */}
+                {part.id === 'avionics-bay' && phonePart && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectPart(selectedPartId === phonePart.id ? null : phonePart.id);
+                    }}
+                    className={`mt-1.5 ml-4 p-2 rounded-lg border transition-all duration-150 cursor-pointer relative ${
+                      selectedPartId === phonePart.id
+                        ? 'bg-cyan-950/50 border-cyan-400 shadow-[0_0_14px_rgba(0,229,255,0.35)]'
+                        : 'bg-black/60 border-cyan-500/20 hover:bg-cyan-950/25 hover:border-cyan-500/40'
+                    }`}
+                  >
+                    {selectedPartId === phonePart.id && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-[#00E5FF] rounded-r shadow-[0_0_8px_#00E5FF]" />
+                    )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-tech text-[9px] text-cyan-400/80 w-6">
+                          └─ PHONE
+                        </span>
+                        <div className="p-1 rounded bg-black/70 border border-cyan-500/20">
+                          <Smartphone className="w-3.5 h-3.5 text-cyan-300" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-100 flex items-center gap-1.5 text-xs">
+                            <span className={selectedPartId === phonePart.id ? 'text-white drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]' : ''}>
+                              Smartphone Telemetry
+                            </span>
+                            {selectedPartId === phonePart.id && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-ping" />
+                            )}
+                          </div>
+                          <div className="text-[10px] font-tech text-slate-400 flex items-center gap-1">
+                            <span>Telemetry App</span>
+                            <span>•</span>
+                            <span>100 Hz</span>
+                            <span>•</span>
+                            <span className="text-cyan-300/80">Design Intent</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {onTogglePartVisibility && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTogglePartVisibility(phonePart.id);
+                            }}
+                            className={`p-1 rounded transition-colors cursor-pointer ${
+                              partVisibility?.[phonePart.id] !== false
+                                ? 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/40'
+                                : 'text-slate-600 hover:text-slate-400 hover:bg-slate-900/60'
+                            }`}
+                            title={partVisibility?.[phonePart.id] !== false ? 'Hide Smartphone Telemetry' : 'Show Smartphone Telemetry'}
+                          >
+                            {partVisibility?.[phonePart.id] !== false ? (
+                              <Eye className="w-3.5 h-3.5" />
+                            ) : (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Child chips for mounting hardware */}
+                    <div className="mt-1.5 pt-1 border-t border-cyan-500/15 flex flex-wrap gap-1">
+                      <span className="text-[8.5px] font-tech px-1.5 py-0.5 rounded bg-black/60 text-slate-300 border border-cyan-500/15">
+                        Mounting Tray
+                      </span>
+                      <span className="text-[8.5px] font-tech px-1.5 py-0.5 rounded bg-black/60 text-slate-300 border border-cyan-500/15">
+                        Foam Pad
+                      </span>
+                      <span className="text-[8.5px] font-tech px-1.5 py-0.5 rounded bg-black/60 text-slate-300 border border-cyan-500/15">
+                        Hold-Down Strap
+                      </span>
+                      <span className="text-[8.5px] font-tech px-1.5 py-0.5 rounded bg-black/60 text-slate-300 border border-cyan-500/15">
+                        Fasteners
+                      </span>
                     </div>
                   </div>
                 )}

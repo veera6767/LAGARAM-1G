@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   X,
   Cpu,
+  Smartphone,
 } from 'lucide-react';
 import { CameraPreset } from '../types';
 
@@ -158,6 +159,15 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         >
           <Cpu className="w-3 h-3 text-cyan-300" />
           <span>PCB</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectPreset('phone')}
+          title="Smartphone Telemetry Payload (framed closely)"
+          className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-cyan-300 text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <Smartphone className="w-3 h-3 text-cyan-300" />
+          <span>Phone</span>
         </button>
         <button
           type="button"

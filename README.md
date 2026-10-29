@@ -9,6 +9,13 @@ An interactive aerospace 3D engineering inspector and flight verification interf
 
 ## Features
 - **Interactive 3D Model**: Drag to orbit, scroll to zoom, click any section to inspect engineering specs.
+- **Smartphone Telemetry Payload & Secure Mounting Hardware**:
+  - Independent 3D telemetry smartphone inside the Avionics Bay beside the Flight Computer PCB, running the SmartPhone Telemetry app.
+  - Logs accelerometer, gyroscope, magnetometer, and GNSS data at 100 Hz to a local file as an onboard backup, and transmits a thinned live copy over the internet during ground tests.
+  - High-resolution emissive screen display reading **"PHONE TELEMETRY"** with a pulsing cyan indicator dot and multi-axis waveform sensor trace graphics.
+  - Precision aerospace retention hardware stack: mounting tray with pocketed lips to prevent lateral sliding, vibration-damping foam pad, hold-down clamp straps leaving the display visible, and fastener screws with standoffs.
+  - Exploded View Kinematics: slides axially out of the avionics tube and translates radially opposite to the Flight Computer PCB, tilting 15–25° toward the camera with an internal exploded hardware stack, screw leader lines, sled leader line, and floating HUD label.
+- **Dedicated Phone Camera Preset**: One-click **"Phone"** camera preset (hotkey: `8`) next to the PCB preset that animates directly to a close, readable view of the smartphone telemetry assembly (automatically running the explosion if collapsed).
 - **Hand-Only Webcam Gesture Control**:
   - 🖐️ **Open Hand**: Move horizontally to continuously rotate the view; move closer/farther to zoom in/out with apparent hand depth.
   - ✊ **Fist (Hold 300ms)**: Trigger Exploded View.

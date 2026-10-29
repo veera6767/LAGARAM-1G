@@ -15,6 +15,8 @@ const getPresetForPart = (id: string): CameraPreset => {
   switch (id) {
     case 'flight-computer-pcb':
       return 'pcb';
+    case 'smartphone-telemetry':
+      return 'phone';
     case 'inner-motor':
     case 'booster-section':
       return 'engine';
@@ -78,8 +80,14 @@ export default function App() {
 
   // Handle Camera Presets
   const handleSelectPreset = useCallback((preset: CameraPreset) => {
+    if (preset === 'phone') {
+      if (explodeProgress < 0.8 || !isExploded) {
+        setIsExploded(true);
+        setExplodeProgress(1.0);
+      }
+    }
     setCameraPresetTrigger({ preset, id: Date.now() });
-  }, []);
+  }, [explodeProgress, isExploded]);
 
   // Handle Reset Camera
   const handleResetCamera = useCallback(() => {
@@ -143,6 +151,8 @@ export default function App() {
         handleSelectPreset('fins');
       } else if (e.key === '7') {
         handleSelectPreset('pcb');
+      } else if (e.key === '8') {
+        handleSelectPreset('phone');
       } else if (e.key === 'Escape') {
         if (isMissionAnalysisOpen) {
           setIsMissionAnalysisOpen(false);

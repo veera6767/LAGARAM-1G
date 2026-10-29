@@ -36,7 +36,7 @@ export interface RocketPartInfo {
   thicknessMm?: number;
 }
 
-export type CameraPreset = 'hero' | 'engine' | 'recovery' | 'payload' | 'nose' | 'full' | 'fins' | 'pcb';
+export type CameraPreset = 'hero' | 'engine' | 'recovery' | 'payload' | 'nose' | 'full' | 'fins' | 'pcb' | 'phone';
 
 export interface ViewerSettings {
   isExploded: boolean;

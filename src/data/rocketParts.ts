@@ -331,6 +331,7 @@ export const ROCKET_PARTS: RocketPartInfo[] = [
     subParts: [
       { name: 'Airframe Tube', massKg: m.avionicsTube, note: '250 mm length, 3 mm wall' },
       { name: 'Flight Computer 3.1', note: '2-layer PCB, STM32' },
+      { name: 'Smartphone Telemetry', note: 'Telemetry phone & mounting hardware' },
       { name: 'Avionics & Weather Payload', massKg: m.avionicsPayload, note: 'Flight computers & sensors' },
       { name: 'Avionics Bulkheads', note: 'Visual internal, mass included in payload' }
     ],
@@ -374,6 +375,53 @@ export const ROCKET_PARTS: RocketPartInfo[] = [
     ],
     explodedYOffset: 2.45,
     explodedRadialOffset: 0.80
+  },
+  {
+    id: 'smartphone-telemetry',
+    name: 'Smartphone Telemetry',
+    assembly: 'Avionics & Payload Bay',
+    order: 2.2,
+    parentId: 'avionics-bay',
+    material: 'Aluminium / Glass / Composite (Hardware stack)',
+    finish: 'Dark-gray metal frame, dark glass display with cyan telemetry readout',
+    massKg: 0,
+    massNote: 'Mass included in Avionics & Weather Payload (2.30 kg)',
+    // Dimensions: about 150 mm x 70 mm x 8 mm (placeholder, confirm with the real phone)
+    lengthMm: 150,
+    widthMm: 70,
+    thicknessMm: 8,
+    startMm: 620,
+    endMm: 770,
+    outerDiameterMm: 0,
+    innerDiameterMm: 0,
+    wallThicknessMm: 8,
+    description: 'Smartphone Telemetry payload running the SmartPhone Telemetry app. Logs accelerometer, gyroscope, magnetometer and GNSS data at 100 Hz to a local file as a backup, and sends a thinned live copy to the ground over the internet during tests. Mounted securely on the avionics sled beside the Flight Computer PCB with dedicated retention hardware.',
+    technicalDetails: [
+      'Application: Runs the SmartPhone Telemetry app',
+      'Data Logging: Logs accelerometer, gyroscope, magnetometer and GNSS data at 100 Hz to a local file as a backup',
+      'Telemetry Downlink: Sends a thinned live copy to the ground over the internet during tests',
+      'Retention: Tray + foam pad + hold-down strap + fasteners (design intent)',
+      'Dimensions: To be confirmed (placeholder: 150 × 70 × 8 mm)',
+      'Mass Allocation: Mass included in Avionics & Weather Payload (2.30 kg)'
+    ],
+    specs: [
+      { label: 'Subsystem', value: 'Smartphone Telemetry' },
+      { label: 'Application', value: 'SmartPhone Telemetry' },
+      { label: 'Sensors Logged', value: 'Accel, Gyro, Mag, GNSS' },
+      { label: 'Logging Rate', value: '100 Hz (Local File Backup)' },
+      { label: 'Live Downlink', value: 'Thinned Copy over Internet (Tests)' },
+      { label: 'Retention', value: 'Tray + Foam Pad + Strap + Fasteners' },
+      { label: 'Dimensions', value: 'To be confirmed' },
+      { label: 'Mass', value: 'Part of 2.30 kg Payload' }
+    ],
+    subParts: [
+      { name: 'Mounting Tray', note: 'Shallow pocket with raised edges on sled' },
+      { name: 'Foam Pad', note: 'Vibration damping layer' },
+      { name: 'Hold-Down Strap', note: 'Clamp strap across front face' },
+      { name: 'Fasteners', note: 'Tray standoffs & clamp screws' }
+    ],
+    explodedYOffset: 2.2,
+    explodedRadialOffset: 0.85
   },
   {
     id: 'drogue-bay',

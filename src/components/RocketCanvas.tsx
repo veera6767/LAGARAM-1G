@@ -151,6 +151,19 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
         }
         break;
       }
+      case 'phone': {
+        const isExp = currentProgressRef.current > 0.05 || targetProgressRef.current > 0.05;
+        if (isExp && modelRef.current?.getPhonePosition) {
+          const phonePos = modelRef.current.getPhonePosition();
+          pos.set(phonePos.x - 0.45, phonePos.y + 0.15, phonePos.z + 0.65);
+          lookAt.copy(phonePos);
+        } else {
+          // Assembled: frame avionics bay closely
+          pos.set(-0.85, 0.85, 1.05);
+          lookAt.set(0, 0.8125, 0);
+        }
+        break;
+      }
       case 'nose':
         pos.set(1.2, 1.8, 1.5);
         lookAt.set(0, 1.8, 0);

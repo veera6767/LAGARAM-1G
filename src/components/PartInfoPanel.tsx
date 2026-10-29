@@ -43,6 +43,8 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
     switch (id) {
       case 'flight-computer-pcb':
         return 'pcb';
+      case 'smartphone-telemetry':
+        return 'phone';
       case 'inner-motor':
       case 'booster-section':
         return 'engine';
@@ -250,6 +252,7 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
   const isMotor = selectedPart.id === 'inner-motor';
   const isFins = selectedPart.id === 'fins';
   const isPcb = selectedPart.id === 'flight-computer-pcb';
+  const isPhone = selectedPart.id === 'smartphone-telemetry';
 
   return (
     <div className="pointer-events-auto w-full md:w-96 bg-[#05070d]/85 backdrop-blur-xl border border-cyan-500/25 rounded-xl shadow-[0_0_25px_rgba(0,229,255,0.06),0_15px_30px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[calc(100vh-140px)] animate-fadeIn relative">
@@ -264,7 +267,7 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-1.5 py-0.5 text-[9px] font-tech font-bold rounded bg-cyan-500/15 text-[#00E5FF] border border-cyan-400/30 uppercase tracking-wider">
-              {isPcb ? 'AVIONICS SUBSYSTEM' : `SECTION 0${selectedPart.order} OF 06`}
+              {isPcb || isPhone ? 'AVIONICS SUBSYSTEM' : `SECTION 0${selectedPart.order} OF 06`}
             </span>
             <span className="text-[10px] font-tech text-slate-400">
               ID: {selectedPart.id}
@@ -280,6 +283,11 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
             {isPcb && (
               <span className="text-[9px] font-tech px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
                 STM32 MCU • 2-Layer
+              </span>
+            )}
+            {isPhone && (
+              <span className="text-[9px] font-tech px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                SmartPhone Telemetry App • 100 Hz
               </span>
             )}
             {isMotor && (
@@ -376,19 +384,19 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
           <div className="grid grid-cols-4 gap-1.5 pt-1 text-center font-tech">
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
               <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Length</span>
-              <span className="text-xs font-bold text-slate-100">{selectedPart.lengthMm} mm</span>
+              <span className="text-xs font-bold text-slate-100">{isPhone ? 'To confirm' : `${selectedPart.lengthMm} mm`}</span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
-              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Width' : 'Outer Dia'}</span>
-              <span className="text-xs font-bold text-slate-100">{isPcb ? `${selectedPart.widthMm} mm` : `${selectedPart.outerDiameterMm} mm`}</span>
+              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb || isPhone ? 'Width' : 'Outer Dia'}</span>
+              <span className="text-xs font-bold text-slate-100">{isPhone ? 'To confirm' : isPcb ? `${selectedPart.widthMm} mm` : `${selectedPart.outerDiameterMm} mm`}</span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
-              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Thickness' : 'Inner Dia'}</span>
-              <span className="text-xs font-bold text-slate-100">{isPcb ? `${selectedPart.thicknessMm} mm` : `${selectedPart.innerDiameterMm} mm`}</span>
+              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb || isPhone ? 'Thickness' : 'Inner Dia'}</span>
+              <span className="text-xs font-bold text-slate-100">{isPhone ? 'To confirm' : isPcb ? `${selectedPart.thicknessMm} mm` : `${selectedPart.innerDiameterMm} mm`}</span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
-              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Layers' : 'Wall'}</span>
-              <span className="text-xs font-bold text-cyan-300">{isPcb ? '2-Layer' : `${selectedPart.wallThicknessMm} mm`}</span>
+              <span className="text-[9px] text-slate-400 block uppercase tracking-wider">{isPcb ? 'Layers' : isPhone ? 'Hardware' : 'Wall'}</span>
+              <span className="text-xs font-bold text-cyan-300">{isPcb ? '2-Layer' : isPhone ? 'Retention' : `${selectedPart.wallThicknessMm} mm`}</span>
             </div>
           </div>
 
@@ -396,19 +404,35 @@ export const PartInfoPanel: React.FC<PartInfoPanelProps> = ({
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
               <span className="text-[9px] text-slate-400 block uppercase tracking-wider">Assembly Mass</span>
               <span className="text-xs font-bold text-[#00E5FF]">
-                {isPcb ? 'Part of 2.30 kg Payload' : `${selectedPart.massKg.toFixed(2)} kg`}
+                {isPcb || isPhone ? 'Part of 2.30 kg Payload' : `${selectedPart.massKg.toFixed(2)} kg`}
               </span>
             </div>
             <div className="p-1.5 bg-black/40 rounded border border-cyan-500/10">
               <span className="text-[9px] text-slate-400 block uppercase tracking-wider">
-                {isNoseCone ? 'Fineness Ratio' : isPcb ? 'Aspect Ratio' : 'Material Class'}
+                {isNoseCone ? 'Fineness Ratio' : isPcb ? 'Aspect Ratio' : isPhone ? 'Hardware Spec' : 'Material Class'}
               </span>
               <span className="text-xs font-bold text-slate-100">
-                {isNoseCone ? selectedPart.finenessRatio : isPcb ? '~3 : 2' : selectedPart.material.split('/')[0]}
+                {isNoseCone ? selectedPart.finenessRatio : isPcb ? '~3 : 2' : isPhone ? 'Design Intent' : selectedPart.material.split('/')[0]}
               </span>
             </div>
           </div>
         </div>
+
+        {/* Dedicated Retention Hardware card for Smartphone Telemetry */}
+        {isPhone && (
+          <div className="p-2.5 rounded-lg bg-black/50 border border-cyan-500/25 font-tech space-y-1">
+            <div className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-[#00E5FF]" />
+              <span>Retention (Design Intent)</span>
+            </div>
+            <div className="text-xs text-slate-200">
+              Tray + foam pad + hold-down strap + fasteners (design intent).
+            </div>
+            <div className="text-[10px] text-slate-400">
+              Mounts flat to the avionics sled beside the Flight Computer PCB, securely isolated from launch vibration.
+            </div>
+          </div>
+        )}
 
         {/* Specifications Table */}
         <div>
