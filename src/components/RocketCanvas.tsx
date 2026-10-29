@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { generateProceduralEnvironmentMap } from '../three/proceduralMaterials';
@@ -20,6 +20,9 @@ interface RocketCanvasProps {
   resetCameraTrigger?: number;
   gestureInputRef?: React.MutableRefObject<GestureCameraInput | null>;
   partVisibility?: Record<string, boolean>;
+  zoomTrigger?: { type: 'in' | 'out'; id: number } | null;
+  autoFitOnExplodeTrigger?: number;
+  collapseRestoreTrigger?: number;
 }
 
 export const RocketCanvas: React.FC<RocketCanvasProps> = ({
@@ -35,6 +38,9 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
   resetCameraTrigger,
   gestureInputRef,
   partVisibility,
+  zoomTrigger,
+  autoFitOnExplodeTrigger,
+  collapseRestoreTrigger,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<BuiltRocketModel | null>(null);
@@ -52,6 +58,10 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
   // Camera animation target
   const cameraTargetPos = useRef<THREE.Vector3 | null>(null);
   const cameraTargetLookAt = useRef<THREE.Vector3 | null>(null);
+
+  // Pre-explosion camera position cache for restoring framing upon collapse
+  const preExplodeCamPos = useRef<THREE.Vector3 | null>(null);
+  const preExplodeCamLookAt = useRef<THREE.Vector3 | null>(null);
 
   // Stability markers group ref
   const stabilityGroupRef = useRef<THREE.Group | null>(null);
@@ -108,6 +118,51 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     }
   }, [partVisibility]);
 
+  // Helper: Calculate framing transform to fit live bounding box into view
+  const calculateFitTransform = useCallback((mode: 'full' | 'fit') => {
+    if (!modelRef.current || !cameraRef.current || !controlsRef.current) return null;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    const root = modelRef.current.rootGroup;
+
+    // Compute bounding box of visible rocket meshes
+    const bbox = new THREE.Box3().setFromObject(root);
+    if (bbox.isEmpty()) return null;
+
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+
+    const fovRad = (camera.fov * Math.PI) / 180;
+    const aspect = camera.aspect || 1;
+    // 1.35 margin accounts for viewport HUD headers and bottom controls
+    const margin = 1.35;
+    const distV = (size.y * margin) / (2 * Math.tan(fovRad / 2));
+    const maxHoriz = Math.max(size.x, size.z) * margin;
+    const distH = maxHoriz / (2 * Math.tan(fovRad / 2) * aspect);
+    const requiredDist = Math.max(distV, distH, 5.5);
+
+    const lookAt = center.clone();
+    let pos = new THREE.Vector3();
+
+    if (mode === 'full') {
+      // Direct front-facing full stack profile
+      pos.set(0, center.y, center.z + requiredDist);
+    } else {
+      // 'fit' preserves current camera azimuth and elevation
+      const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+      if (dir.lengthSq() < 0.0001) {
+        dir.set(2.6, 0.4, 3.6).normalize();
+      } else {
+        dir.normalize();
+      }
+      pos.copy(center).addScaledVector(dir, requiredDist);
+    }
+
+    return { pos, lookAt, requiredDist };
+  }, []);
+
   // Handle Camera Presets
   useEffect(() => {
     if (!cameraPresetTrigger || !controlsRef.current || !cameraRef.current) return;
@@ -122,7 +177,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
         lookAt.set(0, 0.0, 0);
         break;
       case 'fins':
-        // Zoom to tail (last 400 mm of booster section, Y = -2.20) viewed from ~30°, slightly from below
+        // Tail section (booster aft section & stabilizing fins)
         pos.set(1.15, -2.55, 0.70);
         lookAt.set(0, -2.20, 0);
         break;
@@ -145,7 +200,6 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
           pos.set(pcbPos.x + 0.55, pcbPos.y + 0.15, pcbPos.z + 0.65);
           lookAt.copy(pcbPos);
         } else {
-          // Assembled: frame avionics bay closely
           pos.set(0.85, 0.85, 1.05);
           lookAt.set(0, 0.8125, 0);
         }
@@ -158,7 +212,6 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
           pos.set(phonePos.x - 0.45, phonePos.y + 0.15, phonePos.z + 0.65);
           lookAt.copy(phonePos);
         } else {
-          // Assembled: frame avionics bay closely
           pos.set(-0.85, 0.85, 1.05);
           lookAt.set(0, 0.8125, 0);
         }
@@ -168,15 +221,30 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
         pos.set(1.2, 1.8, 1.5);
         lookAt.set(0, 1.8, 0);
         break;
-      case 'full':
-        pos.set(0.0, 0.0, 6.2);
-        lookAt.set(0, 0.0, 0);
+      case 'full': {
+        const fit = calculateFitTransform('full');
+        if (fit) {
+          pos.copy(fit.pos);
+          lookAt.copy(fit.lookAt);
+        } else {
+          pos.set(0.0, 0.0, 6.2);
+          lookAt.set(0, 0.0, 0);
+        }
         break;
+      }
+      case 'fit': {
+        const fit = calculateFitTransform('fit');
+        if (fit) {
+          pos.copy(fit.pos);
+          lookAt.copy(fit.lookAt);
+        }
+        break;
+      }
     }
 
     cameraTargetPos.current = pos;
     cameraTargetLookAt.current = lookAt;
-  }, [cameraPresetTrigger]);
+  }, [cameraPresetTrigger, calculateFitTransform]);
 
   // Handle Reset Camera
   useEffect(() => {
@@ -185,6 +253,71 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
       cameraTargetLookAt.current = new THREE.Vector3(0, 0.0, 0);
     }
   }, [resetCameraTrigger]);
+
+  // Handle Zoom In / Zoom Out trigger (+ and - buttons or hotkeys)
+  useEffect(() => {
+    if (!zoomTrigger || !cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    const factor = zoomTrigger.type === 'in' ? 0.8 : 1.25;
+
+    cameraTargetPos.current = null;
+    cameraTargetLookAt.current = null;
+
+    const currentDist = camera.position.distanceTo(controls.target);
+    const newDist = Math.max(
+      controls.minDistance,
+      Math.min(controls.maxDistance, currentDist * factor)
+    );
+    const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+    const targetPos = new THREE.Vector3().copy(controls.target).addScaledVector(dir, newDist);
+
+    cameraTargetPos.current = targetPos;
+    cameraTargetLookAt.current = controls.target.clone();
+  }, [zoomTrigger]);
+
+  // Handle Auto-Fit on Explode
+  useEffect(() => {
+    if (!autoFitOnExplodeTrigger || !cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    // Cache pre-explosion framing to restore on collapse
+    preExplodeCamPos.current = camera.position.clone();
+    preExplodeCamLookAt.current = controls.target.clone();
+
+    // Required distance for exploded stack (total height ~9.8, center Y ~0.8-1.0)
+    const currentDist = camera.position.distanceTo(controls.target);
+    const fovRad = (camera.fov * Math.PI) / 180;
+    const aspect = camera.aspect || 1;
+    const margin = 1.35;
+    const explodedHeight = 9.8;
+    const distV = (explodedHeight * margin) / (2 * Math.tan(fovRad / 2));
+    const distH = (1.6 * margin) / (2 * Math.tan(fovRad / 2) * aspect);
+    const targetDist = Math.max(distV, distH, 17.5);
+
+    // Only smoothly dolly back if current camera distance is closer than targetDist
+    if (currentDist < targetDist) {
+      const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+      if (dir.lengthSq() < 0.0001) dir.set(2.6, 0.4, 3.6);
+      dir.normalize();
+
+      const targetLookAt = new THREE.Vector3(0, 0.8, 0);
+      const newPos = new THREE.Vector3().copy(targetLookAt).addScaledVector(dir, targetDist);
+
+      cameraTargetPos.current = newPos;
+      cameraTargetLookAt.current = targetLookAt;
+    }
+  }, [autoFitOnExplodeTrigger]);
+
+  // Handle Restore Framing on Collapse
+  useEffect(() => {
+    if (!collapseRestoreTrigger || !cameraRef.current || !controlsRef.current) return;
+    if (preExplodeCamPos.current && preExplodeCamLookAt.current) {
+      cameraTargetPos.current = preExplodeCamPos.current.clone();
+      cameraTargetLookAt.current = preExplodeCamLookAt.current.clone();
+    }
+  }, [collapseRestoreTrigger]);
 
   // Three.js Mount & Animation Lifecycle
   useEffect(() => {
@@ -210,16 +343,17 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     const bgTexture = new THREE.CanvasTexture(bgCanvas);
     bgTexture.colorSpace = THREE.SRGBColorSpace;
     scene.background = bgTexture;
-    scene.fog = new THREE.FogExp2(0x040508, 0.03);
+    // FogExp2 with low density 0.005 so at max zoom distance (50-60) scene elements remain clearly visible
+    scene.fog = new THREE.FogExp2(0x040508, 0.005);
 
-    // 2. Camera setup
+    // 2. Camera setup - far plane increased to 350 for extended zoom-out range
     const initialWidth = container.clientWidth || window.innerWidth || 800;
     const initialHeight = container.clientHeight || window.innerHeight || 600;
     const camera = new THREE.PerspectiveCamera(
       42,
       initialWidth / initialHeight,
       0.1,
-      100
+      350
     );
     camera.position.set(2.6, 0.4, 3.6);
     cameraRef.current = camera;
@@ -305,12 +439,12 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     rimLight.position.set(-6.5, 4.5, -6.5);
     scene.add(rimLight);
 
-    // 6c. Dedicated Nose Cone Rim Light (Ensures carbon-fibre grey nose cone pops clearly from all camera angles)
+    // 6c. Dedicated Nose Cone Rim Light
     const noseRimLight = new THREE.DirectionalLight(0xe8f4ff, 2.5);
     noseRimLight.position.set(-2.5, 4.5, -3.0);
     scene.add(noseRimLight);
 
-    // 6c-2. Dedicated Rear-Left Fin Rim Light (soft rim light from rear-left so fins are lit in default Iso 45 view)
+    // 6c-2. Dedicated Rear-Left Fin Rim Light
     const finRimLight = new THREE.DirectionalLight(0xd4f0e6, 2.2);
     finRimLight.position.set(-4.5, -1.8, -3.5);
     scene.add(finRimLight);
@@ -336,7 +470,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
 
     // 7. Glowing Holographic Grid Floor (situated just below rocket tail at -2.5)
     const gridY = -2.75;
-    const holographicGrid = new THREE.GridHelper(22, 44, 0x00e5ff, 0x00334d);
+    const holographicGrid = new THREE.GridHelper(26, 52, 0x00e5ff, 0x00334d);
     holographicGrid.position.y = gridY;
     if (holographicGrid.material instanceof THREE.Material) {
       holographicGrid.material.transparent = true;
@@ -346,7 +480,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
 
     // Concentric glowing holographic launch rings
     const ringsGroup = new THREE.Group();
-    const ringRadii = [1.2, 2.5, 4.2, 6.5, 9.0];
+    const ringRadii = [1.2, 2.5, 4.2, 6.5, 9.0, 12.0];
     const ringMaterials: THREE.MeshBasicMaterial[] = [];
     const ringGeometries: THREE.BufferGeometry[] = [];
 
@@ -369,7 +503,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     scene.add(ringsGroup);
 
     // Rotating holographic scanner beam on floor
-    const scannerGeo = new THREE.PlaneGeometry(9.0, 0.04);
+    const scannerGeo = new THREE.PlaneGeometry(12.0, 0.04);
     scannerGeo.rotateX(-Math.PI / 2);
     const scannerMat = new THREE.MeshBasicMaterial({
       color: 0x00e5ff,
@@ -383,7 +517,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     scene.add(scannerBeam);
 
     // Ground shadow receiver
-    const shadowPlaneGeo = new THREE.PlaneGeometry(16, 16);
+    const shadowPlaneGeo = new THREE.PlaneGeometry(24, 24);
     shadowPlaneGeo.rotateX(-Math.PI / 2);
     const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.55 });
     const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
@@ -398,10 +532,6 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     modelRef.current = rocket;
 
     // 9. Stability Markers (Center of Gravity & Center of Pressure)
-    // Rocket length 2000 mm (5.0 units), nose tip at Y = +2.50.
-    // CG: 1290 mm from nose -> Y = 2.50 - (1290 * 0.0025) = -0.725
-    // CP: 1530 mm from nose -> Y = 2.50 - (1530 * 0.0025) = -1.325
-    // Margin: 240 mm = 0.60 units = +2.38 calibers (target band 2.0 to 2.5 cal)
     const stabilityGroup = new THREE.Group();
     stabilityGroup.name = 'StabilityMarkers';
     stabilityGroup.visible = showStabilityMarkers;
@@ -423,7 +553,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     stabilityGroup.add(cpGlyph.group);
     stabilityDisposables.push(cpGlyph.dispose);
 
-    // Line connecting CG and CP showing positive caliber margin (+2.38 calibers)
+    // Line connecting CG and CP
     const marginLineGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(markerX, cgY, 0),
       new THREE.Vector3(markerX, cpY, 0),
@@ -451,12 +581,13 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
     scene.add(stabilityGroup);
     stabilityGroupRef.current = stabilityGroup;
 
-    // 10. OrbitControls
+    // 10. OrbitControls with extended zoom distance
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.minDistance = 1.2;
-    controls.maxDistance = 16;
+    controls.maxDistance = 55; // Extended zoom-out range
+    controls.zoomSpeed = 1.0;
     controls.target.set(0, 0.0, 0);
     controls.autoRotate = autoRotate;
     controls.autoRotateSpeed = 1.2;
@@ -489,7 +620,6 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
         return;
       }
 
-      // Hover feedback
       const isVisibleHit = (hit: THREE.Intersection) => {
         if (!hit.object.userData?.partId) return false;
         let curr: THREE.Object3D | null = hit.object;
@@ -554,6 +684,7 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
           camera.aspect = width / height;
           camera.updateProjectionMatrix();
           renderer.setSize(width, height);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         }
       }
     });
@@ -577,7 +708,10 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
         rocket.updateExplosion(target);
       }
 
-      // Smooth camera transition if preset triggered
+      // Dynamic max zoom distance scaling with separation progress (30 to 60)
+      controls.maxDistance = THREE.MathUtils.lerp(30, 60, currentProgressRef.current);
+
+      // Smooth camera transition if preset or fit triggered
       if (cameraTargetPos.current && cameraTargetLookAt.current) {
         camera.position.lerp(cameraTargetPos.current, 0.08);
         controls.target.lerp(cameraTargetLookAt.current, 0.08);
@@ -597,14 +731,14 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
       if (gestureInputRef?.current && gestureInputRef.current.active) {
         const { rotateDeltaX, zoomDelta } = gestureInputRef.current;
 
-        // 1. Azimuth Rotation (moving hand right rotates view right)
+        // Azimuth Rotation
         if (Math.abs(rotateDeltaX) > 0.0001) {
           cameraTargetPos.current = null;
           cameraTargetLookAt.current = null;
           controls.rotateLeft(rotateDeltaX);
         }
 
-        // 2. Depth Dolly / Zoom
+        // Depth Dolly / Zoom
         if (Math.abs(zoomDelta) > 0.0001) {
           cameraTargetPos.current = null;
           cameraTargetLookAt.current = null;
@@ -686,7 +820,6 @@ export const RocketCanvas: React.FC<RocketCanvasProps> = ({
 function createCheckeredGlyph(color: string, label: string): { group: THREE.Group; dispose: () => void } {
   const group = new THREE.Group();
 
-  // Canvas with both checkered symbol, glow shadow, and HUD badge text
   const canvas = document.createElement('canvas');
   canvas.width = 420;
   canvas.height = 130;
@@ -694,11 +827,9 @@ function createCheckeredGlyph(color: string, label: string): { group: THREE.Grou
 
   ctx.clearRect(0, 0, 420, 130);
 
-  // Soft neon glow for HUD pill
   ctx.shadowColor = color;
   ctx.shadowBlur = 18;
 
-  // Background HUD pill for text
   ctx.fillStyle = 'rgba(5, 8, 14, 0.92)';
   ctx.strokeStyle = color;
   ctx.lineWidth = 2.5;
@@ -707,10 +838,8 @@ function createCheckeredGlyph(color: string, label: string): { group: THREE.Grou
   ctx.fill();
   ctx.stroke();
 
-  // Turn off shadow for crisp text/checkers
   ctx.shadowBlur = 6;
 
-  // Left circular glyph (checkered quadrant symbol)
   const cx = 64;
   const cy = 64;
   const radius = 46;
@@ -726,110 +855,92 @@ function createCheckeredGlyph(color: string, label: string): { group: THREE.Grou
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Checkered quadrants
   ctx.fillStyle = color;
-  // Quadrant 1 (top-right in cartesian, bottom-right in canvas coords)
   ctx.beginPath();
   ctx.moveTo(cx, cy);
   ctx.arc(cx, cy, radius - 2, 0, Math.PI / 2);
   ctx.closePath();
   ctx.fill();
 
-  // Quadrant 3 (bottom-left in cartesian, top-left in canvas coords)
   ctx.beginPath();
   ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, radius - 2, Math.PI, (Math.PI * 3) / 2);
+  ctx.arc(cx, cy, radius - 2, Math.PI, (3 * Math.PI) / 2);
   ctx.closePath();
   ctx.fill();
 
-  // Crosshair lines inside circle
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(cx - radius, cy);
-  ctx.lineTo(cx + radius, cy);
-  ctx.moveTo(cx, cy - radius);
-  ctx.lineTo(cx, cy + radius);
-  ctx.stroke();
-
-  // Text label inside pill
+  ctx.font = 'bold 32px "Orbitron", "SF Pro Display", -apple-system, sans-serif';
   ctx.fillStyle = color;
-  ctx.font = 'bold 32px "Orbitron", "Share Tech Mono", monospace';
-  ctx.fillText(label, 120, 75);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 122, 64);
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
   const spriteMat = new THREE.SpriteMaterial({
-    map: tex,
+    map: texture,
     transparent: true,
     depthTest: false,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.center.set(64 / 420, 0.5); // Precisely center on the circular glyph (cx = 64)
-  sprite.scale.set(0.92, 0.28, 1);
+  sprite.scale.set(0.68, 0.21, 1);
   group.add(sprite);
 
-  // Leader line to airframe
-  const lineGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-0.25, 0, 0),
-    new THREE.Vector3(0, 0, 0),
-  ]);
-  const lineMat = new THREE.LineBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: 0.85 });
-  const line = new THREE.Line(lineGeo, lineMat);
-  group.add(line);
-
-  const dispose = () => {
-    tex.dispose();
-    spriteMat.dispose();
-    lineGeo.dispose();
-    lineMat.dispose();
+  return {
+    group,
+    dispose: () => {
+      texture.dispose();
+      spriteMat.dispose();
+    },
   };
-
-  return { group, dispose };
 }
 
 /**
- * Creates a floating margin badge indicator sprite (e.g. +2.0 Calibers) with electric cyan glow
+ * Creates an aerospace HUD static badge between CG and CP showing positive caliber margin (+2.38 calibers)
  */
 function createMarginBadge(text: string): { group: THREE.Group; dispose: () => void } {
   const group = new THREE.Group();
+
   const canvas = document.createElement('canvas');
-  canvas.width = 400;
-  canvas.height = 76;
+  canvas.width = 460;
+  canvas.height = 70;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.shadowColor = '#00e5ff';
-  ctx.shadowBlur = 16;
-
-  ctx.fillStyle = 'rgba(5, 9, 16, 0.9)';
-  ctx.strokeStyle = '#00e5ff';
+  ctx.clearRect(0, 0, 460, 70);
+  ctx.fillStyle = 'rgba(0, 229, 255, 0.12)';
+  ctx.strokeStyle = '#00E5FF';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(8, 8, 384, 60, 6);
+  ctx.roundRect(6, 6, 448, 58, 6);
   ctx.fill();
   ctx.stroke();
 
-  ctx.shadowBlur = 4;
-  ctx.fillStyle = '#00e5ff';
-  ctx.font = 'bold 24px "Orbitron", "Share Tech Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, 200, 46);
+  ctx.fillStyle = '#00E5FF';
+  ctx.beginPath();
+  ctx.arc(28, 35, 6, 0, Math.PI * 2);
+  ctx.fill();
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  ctx.font = 'bold 22px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 48, 36);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
   const spriteMat = new THREE.SpriteMaterial({
-    map: tex,
+    map: texture,
     transparent: true,
     depthTest: false,
   });
   const sprite = new THREE.Sprite(spriteMat);
-  sprite.scale.set(0.7, 0.13, 1);
+  sprite.scale.set(0.65, 0.10, 1);
   group.add(sprite);
 
-  const dispose = () => {
-    tex.dispose();
-    spriteMat.dispose();
+  return {
+    group,
+    dispose: () => {
+      texture.dispose();
+      spriteMat.dispose();
+    },
   };
-
-  return { group, dispose };
 }

@@ -4,10 +4,6 @@ import {
   Play,
   Pause,
   Box,
-  Sliders,
-  Camera,
-  Maximize2,
-  Anchor,
   Flame,
   Radio,
   Wind,
@@ -18,6 +14,13 @@ import {
   X,
   Cpu,
   Smartphone,
+  Maximize2,
+  Focus,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Minimize,
+  Anchor,
 } from 'lucide-react';
 import { CameraPreset } from '../types';
 
@@ -41,6 +44,10 @@ interface ControlBarProps {
   onToggleGestureControl?: () => void;
   gestureError?: string | null;
   onDismissGestureError?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
 }
 
 export const ControlBar: React.FC<ControlBarProps> = ({
@@ -63,6 +70,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   onToggleGestureControl,
   gestureError,
   onDismissGestureError,
+  isFullscreen = false,
+  onToggleFullscreen,
+  onZoomIn,
+  onZoomOut,
 }) => {
   return (
     <div className="pointer-events-auto flex flex-col md:flex-row items-center justify-between gap-3 p-3 bg-[#05070d]/85 backdrop-blur-xl border border-cyan-500/25 rounded-xl shadow-[0_0_25px_rgba(0,229,255,0.06),0_15px_30px_rgba(0,0,0,0.85)] relative">
@@ -105,21 +116,30 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         </div>
       </div>
 
-      {/* Camera Presets Bar */}
+      {/* Camera Presets Bar & Zoom buttons */}
       <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto py-1">
         <span className="text-[10px] font-tech tracking-wider uppercase text-cyan-400/60 px-1 hidden lg:inline">Camera:</span>
         <button
           type="button"
           onClick={() => onSelectPreset('hero')}
-          title="Hero 3/4 Perspective"
+          title="Hero 3/4 Perspective (Hotkey: 1)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all cursor-pointer"
         >
           Iso 45°
         </button>
         <button
           type="button"
+          onClick={() => onSelectPreset('fit')}
+          title="Auto-Fit Rocket into view at current angle (Hotkey: 0)"
+          className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <Focus className="w-3 h-3 text-[#00E5FF]" />
+          <span>Fit</span>
+        </button>
+        <button
+          type="button"
           onClick={() => onSelectPreset('full')}
-          title="Full Rocket Profile"
+          title="Full Rocket Profile with dynamic auto-fit (Hotkey: 2)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all cursor-pointer"
         >
           Full Stack
@@ -127,7 +147,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={() => onSelectPreset('fins')}
-          title="Zoom to tail (booster aft section & stabilizing fins)"
+          title="Zoom to tail (booster aft section & stabilizing fins) (Hotkey: 6)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#8DB8A0] text-xs font-tech border border-cyan-500/15 hover:border-[#8DB8A0]/50 transition-all flex items-center gap-1 cursor-pointer"
         >
           <span className="w-2 h-2 rounded-full bg-[#8DB8A0] shadow-[0_0_6px_#8DB8A0]" />
@@ -136,7 +156,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={() => onSelectPreset('engine')}
-          title="Engine / Motor Assembly & Nozzle"
+          title="Engine / Motor Assembly & Nozzle (Hotkey: 3)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#FF5A1F] text-xs font-tech border border-cyan-500/15 hover:border-amber-500/40 transition-all flex items-center gap-1 cursor-pointer"
         >
           <Flame className="w-3 h-3 text-[#FF5A1F]" />
@@ -145,7 +165,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={() => onSelectPreset('payload')}
-          title="Avionics & Payload Bay"
+          title="Avionics & Payload Bay (Hotkey: 4)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
         >
           <Radio className="w-3 h-3 text-[#00E5FF]" />
@@ -154,7 +174,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={() => onSelectPreset('pcb')}
-          title="Flight Computer PCB (framed closely)"
+          title="Flight Computer PCB (framed closely) (Hotkey: 7)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-cyan-300 text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
         >
           <Cpu className="w-3 h-3 text-cyan-300" />
@@ -163,7 +183,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={() => onSelectPreset('phone')}
-          title="Smartphone Telemetry Payload (framed closely)"
+          title="Smartphone Telemetry Payload (framed closely) (Hotkey: 8)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-cyan-300 text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
         >
           <Smartphone className="w-3 h-3 text-cyan-300" />
@@ -172,21 +192,47 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={() => onSelectPreset('nose')}
-          title="Aerodynamic Nose Cone"
+          title="Aerodynamic Nose Cone (Hotkey: 5)"
           className="px-2.5 py-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all flex items-center gap-1 cursor-pointer"
         >
           <Wind className="w-3 h-3 text-slate-300" />
           <span>Nose</span>
         </button>
+
+        {/* Zoom In / Zoom Out Icon Buttons */}
+        {(onZoomIn || onZoomOut) && (
+          <div className="flex items-center gap-1 border-l border-cyan-500/20 pl-1.5 ml-0.5">
+            {onZoomIn && (
+              <button
+                type="button"
+                onClick={onZoomIn}
+                title="Zoom In (Hotkey: + or =)"
+                className="p-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all cursor-pointer"
+              >
+                <ZoomIn className="w-3.5 h-3.5 text-cyan-300" />
+              </button>
+            )}
+            {onZoomOut && (
+              <button
+                type="button"
+                onClick={onZoomOut}
+                title="Zoom Out (Hotkey: - or _)"
+                className="p-1.5 rounded bg-black/40 hover:bg-cyan-950/30 text-slate-300 hover:text-[#00E5FF] text-xs font-tech border border-cyan-500/15 hover:border-cyan-400/40 transition-all cursor-pointer"
+              >
+                <ZoomOut className="w-3.5 h-3.5 text-cyan-300" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Secondary Controls: Auto-Rotate, Reset, Wireframe, Fin Detail, CG/CP */}
+      {/* Secondary Controls: Auto-Rotate, Reset, Fullscreen, Wireframe, Fin Detail, CG/CP, Analysis */}
       <div className="flex items-center gap-1.5 w-full md:w-auto justify-end font-tech">
         {/* Stability Markers Toggle */}
         <button
           type="button"
           onClick={onToggleStabilityMarkers}
-          title="Toggle Center of Gravity & Center of Pressure markers"
+          title="Toggle Center of Gravity & Center of Pressure markers (Hotkey: S)"
           className={`p-2 rounded-lg text-xs border transition-all flex items-center gap-1 cursor-pointer ${
             showStabilityMarkers
               ? 'bg-cyan-500/20 border-cyan-400 text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.4)]'
@@ -201,7 +247,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={onToggleWireframe}
-          title="Toggle Wireframe CAD Mesh"
+          title="Toggle Wireframe CAD Mesh (Hotkey: W)"
           className={`p-2 rounded-lg text-xs border transition-all flex items-center gap-1 cursor-pointer ${
             wireframe
               ? 'bg-amber-500/20 border-amber-400 text-[#FF5A1F] shadow-[0_0_15px_rgba(255,90,31,0.4)]'
@@ -212,7 +258,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
           <span className="hidden sm:inline text-[11px] tracking-wider">Wireframe</span>
         </button>
 
-        {/* Fin Detail x1.5 Toggle (Next to Wireframe, OFF by default) */}
+        {/* Fin Detail x1.5 Toggle */}
         <div className="relative flex items-center">
           <button
             type="button"
@@ -275,7 +321,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={onToggleAutoRotate}
-          title={autoRotate ? 'Pause auto-rotation' : 'Start auto-rotation'}
+          title={autoRotate ? 'Pause auto-rotation (Hotkey: A)' : 'Start auto-rotation (Hotkey: A)'}
           className={`p-2 rounded-lg text-xs border transition-all flex items-center gap-1 cursor-pointer ${
             autoRotate
               ? 'bg-cyan-500/25 border-cyan-300 text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.4)]'
@@ -290,19 +336,38 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         <button
           type="button"
           onClick={onResetCamera}
-          title="Reset Camera to default position"
+          title="Reset Camera to default assembled position (Hotkey: R)"
           className="p-2 rounded-lg text-xs bg-black/40 hover:bg-cyan-950/30 border border-cyan-500/20 hover:border-cyan-400/40 text-slate-300 hover:text-[#00E5FF] transition-all flex items-center gap-1 cursor-pointer"
         >
           <RotateCcw className="w-4 h-4" />
           <span className="hidden sm:inline text-[11px] tracking-wider">Reset</span>
         </button>
 
+        {/* Fullscreen Toggle Button */}
+        {onToggleFullscreen && (
+          <button
+            type="button"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? 'Exit Fullscreen (Hotkey: Esc or F)' : 'Enter Fullscreen View (Hotkey: F)'}
+            className={`p-2 rounded-lg text-xs border transition-all flex items-center gap-1.5 cursor-pointer ${
+              isFullscreen
+                ? 'bg-cyan-500/25 border-cyan-300 text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.4)]'
+                : 'bg-black/40 hover:bg-cyan-950/30 border-cyan-500/20 text-slate-300 hover:text-[#00E5FF]'
+            }`}
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4 text-cyan-300" /> : <Maximize className="w-4 h-4 text-cyan-300" />}
+            <span className="hidden sm:inline text-[11px] font-bold tracking-wider">
+              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            </span>
+          </button>
+        )}
+
         {/* Mission Analysis Button */}
         {onOpenMissionAnalysis && (
           <button
             type="button"
             onClick={onOpenMissionAnalysis}
-            title="Open Mission Analysis (NASA CEA, OpenMotor, RASAero II)"
+            title="Open Mission Analysis (NASA CEA, OpenMotor, RASAero II) (Hotkey: M)"
             className="p-2 rounded-lg text-xs bg-cyan-950/40 hover:bg-cyan-900/50 border border-cyan-400/40 hover:border-cyan-300 text-cyan-200 hover:text-white transition-all flex items-center gap-1 cursor-pointer shadow-[0_0_10px_rgba(0,229,255,0.2)]"
           >
             <BarChart2 className="w-4 h-4 text-[#00E5FF]" />
